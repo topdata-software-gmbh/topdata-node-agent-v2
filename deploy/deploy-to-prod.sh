@@ -18,4 +18,6 @@ GOOS=linux GOARCH=amd64 go build -o deploy/bin/topdata-agent-amd64 .
 ansible-playbook -i deploy/hosts.ini deploy/playbook-deploy.yaml --ask-vault-pass "$@"
 
 echo "Deployed topdata-agent to all hosts in deploy/hosts.ini."
-echo "Smoke check: curl -u <user>:<pass> http://<host>:9144/metrics"
+echo
+echo "Scrape targets (credentials from deploy/vars/vault.yml):"
+awk '/^\[agent\]/{in_agent=1; next} /^\[/{in_agent=0} in_agent && /ansible_host=/{sub(/^.*ansible_host=/, ""); sub(/ .*$/, ""); print "  http://<user>:<pass>@" $0 ":9144/metrics"}' deploy/hosts.ini

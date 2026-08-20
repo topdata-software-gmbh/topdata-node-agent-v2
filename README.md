@@ -38,6 +38,26 @@ with the following defaults:
 | `shopware_critical_errors_total` | Counter | Total number of critical errors in Shopware logs, labelled by `shop` |
 | `shopware_shop_disk_usage_bytes` | Gauge | Disk usage of the shop directory in bytes, labelled by `shop` |
 
+## Prometheus
+
+Scrape target: `http://USERNAME:PASSWORD@host:9144/metrics`
+
+Example `prometheus.yml` scrape config:
+
+```yaml
+scrape_configs:
+  - job_name: topdata-agent
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - arm1.srv.topinfra.de:9144
+          - arm2.srv.topinfra.de:9144
+          # ... all hosts from deploy/hosts.ini
+    basic_auth:
+      username: USERNAME
+      password: PASSWORD
+```
+
 ## Build & Run
 
 ```sh
@@ -69,10 +89,4 @@ WantedBy=multi-user.target
 sudo cp bin/topdata-agent /usr/local/bin/topdata-agent
 sudo systemctl daemon-reload
 sudo systemctl enable --now topdata-agent
-```
-
-Scrape target (with credentials):
-
-```
-http://USERNAME:PASSWORD@host:9144/metrics
 ```
