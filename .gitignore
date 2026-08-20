@@ -19,3 +19,10 @@ __pycache__/
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# Build output
+/bin/
+dist/
+
+# Environment files
+*.env
