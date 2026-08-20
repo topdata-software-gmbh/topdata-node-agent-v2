@@ -1,0 +1,13 @@
+[Unit]
+Description=Topdata Go Node Agent (Shopware 6 metrics exporter)
+After=network.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/topdata-agent.env
+ExecStart=/usr/local/bin/topdata-agent serve
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -7,9 +7,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var version = "dev"
+
 var rootCmd = &cobra.Command{
 	Use:   "topdata-agent",
 	Short: "Topdata Node Agent for Shopware Monitoring",
+	Version: version,
 }
 
 func Execute() {

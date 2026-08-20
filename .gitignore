@@ -22,7 +22,11 @@ Desktop.ini
 
 # Build output
 /bin/
-dist/
+/dist/
+deploy/bin/
+
+# Sensitive deployment files
+deploy/vars/vault.yml
 
 # Environment files
 *.env

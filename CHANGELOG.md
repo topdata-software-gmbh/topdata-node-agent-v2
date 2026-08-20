@@ -7,7 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- `shops.root` now points directly at the directory containing shop folders (no `prod-shops` suffix appended anymore). Default and deploy configs updated to `/srv/topdata-shops/prod-shops`; the real `deploy/vars/vault.yml` must be updated accordingly.
+
 ### Added
+- `serve --shops-root` and `serve --listen-address` CLI flags to override the shops root directory and listen address (take precedence over `TOPDATA_AGENT_*` env vars when set).
+- Startup logging: prints agent version, shops root, discovered shops, and listen address.
+- `--version` flag on the root command (version injectable via `-ldflags "-X github.com/topdata/node-agent/cmd.version=..."`).
+- Ansible fleet deployment (`deploy/`): inventory for all 10 shop-hosting servers, per-host playbook (binary copy, env file, systemd unit, smoke test), and `deploy-to-prod.sh` for cross-compiling both architectures.
 - Initial release of the Go Node Agent.
 - Migration of log monitoring and disk usage tracking from the PHP-based `node-agent`.
 - Auto-discovery of active Shopware 6 shops in `/srv/topdata-shops/prod-shops/`.

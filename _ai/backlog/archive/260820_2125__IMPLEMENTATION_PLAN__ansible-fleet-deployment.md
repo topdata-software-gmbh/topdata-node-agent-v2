@@ -1,7 +1,8 @@
 ---
 title: "Ansible Fleet Deployment of the Go Node Agent"
 date: 2026-08-20
-status: proposed
+status: completed
+completedAt: 2026-08-20 21:55
 project: topdata-node-agent-v2
 ---
 

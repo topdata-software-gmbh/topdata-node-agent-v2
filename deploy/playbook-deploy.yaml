@@ -1,0 +1,91 @@
+---
+# Ansible playbook for deploying the topdata-agent (Go node agent) to the
+# shop-hosting fleet. Mirrors the package-service deploy pattern: binaries
+# cross-compiled locally into deploy/bin/, arch picked via ansible_architecture.
+
+- name: Deploy topdata-agent
+  hosts: agent
+  gather_facts: true
+  vars:
+    agent_bin: /usr/local/bin/topdata-agent
+    agent_env_file: /etc/topdata-agent.env
+    agent_unit: /etc/systemd/system/topdata-agent.service
+    listen_address: ":9144"
+    shops_root: "/srv/topdata-shops/prod-shops"
+    vault_file: "{{ playbook_dir }}/vars/vault.yml"
+  tasks:
+    - name: Check local vault file exists
+      ansible.builtin.stat:
+        path: "{{ vault_file }}"
+      delegate_to: localhost
+      run_once: true
+      register: vault_file_stat
+
+    - name: Fail with hint if vault is missing
+      ansible.builtin.fail:
+        msg: >-
+          Missing {{ vault_file }}. Create it once with:
+          ansible-vault create deploy/vars/vault.yml
+          (see deploy/vars/vault.example.yml for the required keys)
+      when: not vault_file_stat.stat.exists
+
+    - name: Load vault secrets
+      ansible.builtin.include_vars:
+        file: "{{ vault_file }}"
+      no_log: true
+
+    - name: Map ansible architecture to Go binary name
+      ansible.builtin.set_fact:
+        agent_arch: "{{ 'arm64' if ansible_facts.architecture in ['aarch64', 'arm64'] else 'amd64' }}"
+
+    - name: Check local binary exists for this architecture
+      ansible.builtin.stat:
+        path: "{{ playbook_dir }}/bin/topdata-agent-{{ agent_arch }}"
+      delegate_to: localhost
+      run_once: true
+      register: local_bin
+
+    - name: Fail if binary is missing
+      ansible.builtin.fail:
+        msg: >-
+          Missing deploy/bin/topdata-agent-{{ agent_arch }}. Build it with
+          ./deploy/deploy-to-prod.sh or: GOOS=linux GOARCH={{ agent_arch }} go build -o deploy/bin/topdata-agent-{{ agent_arch }} .
+      when: not local_bin.stat.exists
+
+    - name: Copy agent binary
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/bin/topdata-agent-{{ agent_arch }}"
+        dest: "{{ agent_bin }}"
+        mode: "0755"
+
+    - name: Render environment file
+      ansible.builtin.template:
+        src: templates/topdata-agent.env.j2
+        dest: "{{ agent_env_file }}"
+        mode: "0600"
+
+    - name: Install systemd unit
+      ansible.builtin.template:
+        src: templates/topdata-agent.service.j2
+        dest: "{{ agent_unit }}"
+        mode: "0644"
+
+    - name: Enable and (re)start service
+      ansible.builtin.systemd:
+        name: topdata-agent
+        state: restarted
+        enabled: true
+        daemon_reload: true
+
+    - name: Smoke test /metrics endpoint
+      ansible.builtin.uri:
+        url: http://127.0.0.1:9144/metrics
+        user: "{{ auth_username }}"
+        password: "{{ auth_password }}"
+        force_basic_auth: true
+        status_code: 200
+      register: smoke
+      until: smoke.status == 200
+      retries: 10
+      delay: 3
+      check_mode: false

@@ -1,0 +1,6 @@
+# Template for deploy/vars/vault.yml (ansible-vault encrypted).
+# Create the real file with:
+#   ansible-vault create deploy/vars/vault.yml
+auth_username: "change-me"
+auth_password: "change-me"
+shops_root: "/srv/topdata-shops/prod-shops"
