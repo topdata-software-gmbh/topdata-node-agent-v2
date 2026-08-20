@@ -24,7 +24,7 @@ There are no test files — `go test` is empty. Smoke-test manually: run `serve`
 
 Keys are dotted and map to env with prefix `TOPDATA_AGENT_` (`cmd/serve.go:57-59`; replacer converts `.` to `_`):
 - `shops.root` → `TOPDATA_AGENT_SHOPS_ROOT`, default `/srv/topdata-shops/prod-shops`
-- `auth.username`/`auth.password` → `TOPDATA_AGENT_AUTH_USERNAME/PASSWORD`, defaults `admin`/`fete` — defaults are intentional; production overrides via systemd `EnvironmentFile`
+- `auth.username`/`auth.password` → `TOPDATA_AGENT_AUTH_USERNAME/PASSWORD`, **required** — no defaults; `serve` `log.Fatal`s at startup if either is unset. Production values come from the ansible-vault `deploy/vars/vault.yml`, rendered into the systemd `EnvironmentFile`
 - `listen.address` → `TOPDATA_AGENT_LISTEN_ADDRESS`, default `:9144`
 
 No config file support. `serve --shops-root <dir>` binds to `shops.root` (takes precedence over the env var when set).

@@ -23,12 +23,13 @@ with the following defaults:
 | Env var | Default | Description |
 |---|---|---|
 | `TOPDATA_AGENT_SHOPS_ROOT` | `/srv/topdata-shops` | Root directory containing `prod-shops/` |
-| `TOPDATA_AGENT_AUTH_USERNAME` | `admin` | Basic Auth username for `/metrics` |
-| `TOPDATA_AGENT_AUTH_PASSWORD` | `fete` | Basic Auth password for `/metrics` |
+| `TOPDATA_AGENT_AUTH_USERNAME` | *(required)* | Basic Auth username for `/metrics` |
+| `TOPDATA_AGENT_AUTH_PASSWORD` | *(required)* | Basic Auth password for `/metrics` |
 | `TOPDATA_AGENT_LISTEN_ADDRESS` | `:9144` | Listen address of the metrics endpoint |
 
-> Set `TOPDATA_AGENT_AUTH_USERNAME` and `TOPDATA_AGENT_AUTH_PASSWORD` in
-> production to avoid the built-in defaults.
+> `TOPDATA_AGENT_AUTH_USERNAME` and `TOPDATA_AGENT_AUTH_PASSWORD` are required —
+> the agent refuses to start without them. Set them via the systemd
+> `EnvironmentFile` (deployed by the Ansible playbook from the vault).
 
 ## Metrics
 
@@ -73,5 +74,5 @@ sudo systemctl enable --now topdata-agent
 Scrape target (with credentials):
 
 ```
-http://admin:fete@host:9144/metrics
+http://USERNAME:PASSWORD@host:9144/metrics
 ```

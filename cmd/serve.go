@@ -17,6 +17,10 @@ var serveCmd = &cobra.Command{
 	Use:   "serve",
 	Short: "Start the metrics exporter",
 	Run: func(cmd *cobra.Command, args []string) {
+		if !viper.IsSet("auth.username") || !viper.IsSet("auth.password") {
+			log.Fatal("basic auth credentials not configured: set TOPDATA_AGENT_AUTH_USERNAME and TOPDATA_AGENT_AUTH_PASSWORD")
+		}
+
 		log.Printf("topdata-agent %s starting", version)
 		log.Printf("shops root: %s", viper.GetString("shops.root"))
 
@@ -58,8 +62,6 @@ func authMiddleware(next http.Handler) http.Handler {
 }
 
 func init() {
-	viper.SetDefault("auth.username", "admin")
-	viper.SetDefault("auth.password", "fete")
 	viper.SetDefault("shops.root", "/srv/topdata-shops/prod-shops")
 	viper.SetDefault("listen.address", ":9144")
 	viper.SetEnvPrefix("TOPDATA_AGENT")
