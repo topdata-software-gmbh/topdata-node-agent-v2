@@ -27,5 +27,5 @@ dist/
 # Environment files
 *.env
 
-./node-agent
+node-agent
 
