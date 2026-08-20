@@ -4,6 +4,8 @@ status: Accepted
 date: 2026-08-20
 deciders: Topdata Team
 tags: [golang, monitoring, prometheus, shopware, migration]
+sha256: 7cc2ee7da5f79e0ebec3f055a7976709e6712f9a0d14f84b6973c59f2e480bba
+id: 5f462a38-1379-40d9-9662-a7723349fe43
 ---
 
 # Go Node Agent Replacing PHP Node Agent for Shopware Monitoring
