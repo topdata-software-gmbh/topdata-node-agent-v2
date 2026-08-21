@@ -16,7 +16,7 @@ Monitoring Shopware 6 instances across servers was fragmented. The PHP-based `no
 
 ## Decision
 
-Replace the PHP agent with `topdata-node-agent`, a single self-contained Go binary (Go 1.21+, Cobra CLI) running as one systemd service with zero runtime dependencies. It auto-discovers active shops in `/srv/topdata-shops/prod-shops/`, tails daily Shopware logs (`var/log/prod-YYYY-MM-DD.log`) in real time counting CRITICAL entries, reports per-shop disk usage (`du -sb`), and exposes a Prometheus `/metrics` endpoint on port 9144 secured with Basic Auth. All settings (shops root, credentials, listen address) are configurable via `TOPDATA_AGENT_*` environment variables with documented defaults.
+Replace the PHP agent with `topdata-node-agent`, a single self-contained Go binary (Go 1.21+, Cobra CLI) running as one systemd service with zero runtime dependencies. It auto-discovers active shops in `/srv/topdata-shops/prod-shops/`, tails daily Shopware logs (`vol/www/var/log/prod-YYYY-MM-DD.log`) in real time counting CRITICAL entries, reports per-shop disk usage (`du -sb`), and exposes a Prometheus `/metrics` endpoint on port 9144 secured with Basic Auth. All settings (shops root, credentials, listen address) are configurable via `TOPDATA_AGENT_*` environment variables with documented defaults.
 
 ## Consequences
 

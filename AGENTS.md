@@ -32,8 +32,8 @@ No config file support. `serve --shops-root <dir>` binds to `shops.root` (takes 
 ## Architecture
 
 - `cmd/` — Cobra CLI (`root.go` + `serve.go`). `serve` is the only subcommand.
-- `internal/discovery` — `FindShops` scans the configured root **directly** (no `prod-shops` suffix appended), keeps dirs containing `var/log`.
-- `internal/monitor/log_monitor.go` — `TailLog` tails `var/log/prod-YYYY-MM-DD.log` (hpcloud/tail, `Poll: true`). Counts lines matching `.CRITICAL:` or `[critical]` into `shopware_critical_errors_total{shop}`. A 30s watchdog restarts the tail at midnight for the new daily file — do not refactor back to a single blocking `range t.Lines`.
+- `internal/discovery` — `FindShops` scans the configured root **directly** (no `prod-shops` suffix appended), keeps dirs containing `vol/www/var/log`.
+- `internal/monitor/log_monitor.go` — `TailLog` tails `vol/www/var/log/prod-YYYY-MM-DD.log` (hpcloud/tail, `Poll: true`). Counts lines matching `.CRITICAL:` or `[critical]` into `shopware_critical_errors_total{shop}`. A 30s watchdog restarts the tail at midnight for the new daily file — do not refactor back to a single blocking `range t.Lines`.
 - `internal/monitor/host_monitor.go` — `UpdateDiskUsage` runs `du -sb` hourly → `shopware_disk_usage_bytes{shop}`. Requires `du` on PATH.
 - `serve` starts one goroutine per shop and blocks in `http.ListenAndServe`; it `log.Fatal`s if discovery errors, and fails at startup if the configured shops directory doesn't exist.
 

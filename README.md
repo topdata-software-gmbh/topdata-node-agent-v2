@@ -6,9 +6,9 @@ runtime dependencies.
 
 ## Architecture
 
-- **Discovery**: scans `/srv/topdata-shops/prod-shops/` for active Shopware 6 shops
-  (identified by a `var/log` directory). `retired-shops` is ignored entirely.
-- **Log monitoring**: tails each shop's `var/log/prod-YYYY-MM-DD.log` in real-time
+- **Discovery**: scans `shops.root` for active Shopware 6 shops (identified by a
+  `vol/www/var/log` directory). Each matching subdirectory is treated as one shop.
+- **Log monitoring**: tails each shop's `vol/www/var/log/prod-YYYY-MM-DD.log` in real-time
   and counts `[CRITICAL]` entries. The tail automatically restarts when the date
   changes to follow the new daily log file.
 - **Host statistics**: periodically reports the disk usage of each shop directory.
@@ -39,7 +39,7 @@ directory name under `shops.root`.
 
 | Metric | Type | Labels | Description |
 |---|---|---|---|
-| `shopware_critical_errors_total` | Counter | `shop` | Total number of critical errors found in the shop's `var/log/prod-YYYY-MM-DD.log`. A line counts when it matches `.CRITICAL:` or `[critical]` (case-insensitive). Monotonic — it only increases for the lifetime of the process. |
+| `shopware_critical_errors_total` | Counter | `shop` | Total number of critical errors found in the shop's `vol/www/var/log/prod-YYYY-MM-DD.log`. A line counts when it matches `.CRITICAL:` or `[critical]` (case-insensitive). Monotonic — it only increases for the lifetime of the process. |
 | `shopware_shop_disk_usage_bytes` | Gauge | `shop` | Disk usage of the shop directory in bytes, measured with `du -sb` and refreshed hourly. Drops to the last value at rest; 0 if `du` is missing or fails. |
 
 > The `shop` label value is the directory name discovered under `shops.root`
