@@ -104,12 +104,9 @@
         enabled: true
         daemon_reload: true
 
-    - name: Smoke test /metrics endpoint
+    - name: Smoke test /healthz endpoint
       ansible.builtin.uri:
-        url: http://127.0.0.1:9144/metrics
-        user: "{{ auth_username }}"
-        password: "{{ auth_password }}"
-        force_basic_auth: true
+        url: http://127.0.0.1:9144/healthz
         status_code: 200
       register: smoke
       until: smoke.status == 200

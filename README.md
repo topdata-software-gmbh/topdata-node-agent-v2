@@ -65,6 +65,12 @@ scrape_configs:
       password: PASSWORD
 ```
 
+The `/metrics` and `/disk-eaters` endpoints require Basic Auth. `/info` also
+requires Basic Auth and supports `?format=json|text|markdown` (plus `Accept`
+negotiation). The `/healthz` endpoint is **unauthenticated** and only returns
+`200 OK` while the process is listening — use it for liveness checks and the
+Ansible deploy smoke test.
+
 ## Deployment (Ansible)
 
 The agent is deployed to all shop-hosting servers via the playbook in `deploy/`.
