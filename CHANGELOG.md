@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - `serve --shops-root` and `serve --listen-address` CLI flags to override the shops root directory and listen address (take precedence over `TOPDATA_AGENT_*` env vars when set).
+- `deploy-to-prod.sh` now supports `-h|--help` (with a `usage()` function and doc header), `--build-only` (cross-compile only), `--deploy-only` (skip build, run ansible-playbook only), and passes any other argument (e.g. `--limit arm1`, `--check`, `-vvv`) through to ansible-playbook unchanged for single-server testing.
 - Startup logging: prints agent version, shops root, discovered shops, and listen address.
 - `--version` flag on the root command (version injectable via `-ldflags "-X github.com/topdata/node-agent/cmd.version=..."`).
 - Ansible fleet deployment (`deploy/`): inventory for all 10 shop-hosting servers, per-host playbook (binary copy, env file, systemd unit, smoke test), and `deploy-to-prod.sh` for cross-compiling both architectures.
