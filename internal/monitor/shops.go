@@ -1,0 +1,15 @@
+package monitor
+
+import (
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+)
+
+var shopsTotal = promauto.NewGauge(prometheus.GaugeOpts{
+	Name: "topdata_agent_shops_total",
+	Help: "Total number of Shopware shops discovered by the agent",
+})
+
+func SetShopsTotal(n int) {
+	shopsTotal.Set(float64(n))
+}

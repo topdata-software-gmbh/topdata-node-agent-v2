@@ -51,9 +51,23 @@ fi
 
 cd "$(dirname "$0")/.."
 
+GIT_REMOTE="$(git remote get-url origin 2>/dev/null || echo unknown)"
+GIT_COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+BUILD_VERSION="${GIT_REMOTE}#${GIT_COMMIT}"
+BUILD_LDFLAGS="-X github.com/topdata/node-agent/cmd.version=${BUILD_VERSION}"
+
 if [ "$DEPLOY_ONLY" -eq 0 ]; then
-    GOOS=linux GOARCH=arm64 go build -o deploy/bin/topdata-agent-arm64 .
-    GOOS=linux GOARCH=amd64 go build -o deploy/bin/topdata-agent-amd64 .
+    echo "==> Cross-compiling topdata-agent binaries"
+    echo "    go:       $(go version)"
+    echo "    remote:   ${GIT_REMOTE}"
+    echo "    commit:   ${GIT_COMMIT}"
+    echo "    module:   $(head -1 go.mod)"
+    echo "    building: deploy/bin/topdata-agent-arm64 (linux/arm64)"
+    GOOS=linux GOARCH=arm64 go build -ldflags "${BUILD_LDFLAGS}" -o deploy/bin/topdata-agent-arm64 .
+    echo "    building: deploy/bin/topdata-agent-amd64 (linux/amd64)"
+    GOOS=linux GOARCH=amd64 go build -ldflags "${BUILD_LDFLAGS}" -o deploy/bin/topdata-agent-amd64 .
+    echo "    done. built artifacts:"
+    ls -l deploy/bin/topdata-agent-arm64 deploy/bin/topdata-agent-amd64
 fi
 
 if [ "$BUILD_ONLY" -eq 0 ]; then

@@ -32,6 +32,8 @@ var serveCmd = &cobra.Command{
 			log.Printf("no shops found under %s", viper.GetString("shops.root"))
 		}
 
+		monitor.SetShopsTotal(len(shops))
+
 		for _, shop := range shops {
 			log.Printf("found shop %s (logs: %s)", shop.Name, shop.LogPath)
 			go monitor.TailLog(shop.Name, shop.LogPath)

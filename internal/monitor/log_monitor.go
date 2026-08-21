@@ -12,7 +12,7 @@ import (
 
 var (
 	criticalErrors = promauto.NewCounterVec(prometheus.CounterOpts{
-		Name: "shopware_critical_errors_total",
+		Name: "topdata_agent_shopware_critical_errors_total",
 		Help: "Total number of critical errors in Shopware logs",
 	}, []string{"shop"})
 )

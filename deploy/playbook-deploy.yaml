@@ -38,6 +38,10 @@
       ansible.builtin.set_fact:
         agent_arch: "{{ 'arm64' if ansible_facts.architecture in ['aarch64', 'arm64'] else 'amd64' }}"
 
+    - name: Show selected binary for this host
+      ansible.builtin.debug:
+        msg: "arch={{ agent_arch }} -> deploying deploy/bin/topdata-agent-{{ agent_arch }} to {{ agent_bin }}"
+
     - name: Check local binary exists for this architecture
       ansible.builtin.stat:
         path: "{{ playbook_dir }}/bin/topdata-agent-{{ agent_arch }}"
@@ -89,3 +93,21 @@
       retries: 10
       delay: 3
       check_mode: false
+
+    - name: Report deployed binary version
+      ansible.builtin.command: "{{ agent_bin }} --version"
+      register: agent_version
+      changed_when: false
+
+    - name: Show deployed version
+      ansible.builtin.debug:
+        var: agent_version.stdout
+
+    - name: Verify topdata_agent_ metrics are exposed
+      ansible.builtin.uri:
+        url: http://127.0.0.1:9144/metrics
+        user: "{{ auth_username }}"
+        password: "{{ auth_password }}"
+        force_basic_auth: true
+      register: metrics_check
+      failed_when: "'topdata_agent_' not in metrics_check.content"
