@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [v1.0.1] - 2026-08-21
 
 ### Changed
 - `shops.root` now points directly at the directory containing shop folders (no `prod-shops` suffix appended anymore). Default and deploy configs updated to `/srv/topdata-shops/prod-shops`; the real `deploy/vars/vault.yml` must be updated accordingly.
@@ -30,3 +30,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Disk usage tracking per shop (`shopware_shop_disk_usage_bytes`).
 - Prometheus-compatible `/metrics` endpoint secured with Basic Auth, configurable via environment variables.
 - Cobra-based CLI with a single `serve` command.
+## [Unreleased]
+
