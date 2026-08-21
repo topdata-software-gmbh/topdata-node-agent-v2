@@ -36,6 +36,9 @@ func TailLog(shopName, logDir string) {
 				ReOpen:    true,
 				MustExist: false,
 				Poll:      true,
+				// Silence the library's internal debug logging ("Seeked ...",
+				// "Re-opening ...", etc.) which otherwise floods the agent log.
+				Logger: tail.DiscardingLogger,
 				// Start at the end of the file so a (re)start does not replay
 				// the day's already-logged CRITICAL lines; the counter begins
 				// from 0 (new lines only).
