@@ -54,7 +54,7 @@ cd "$(dirname "$0")/.."
 GIT_REMOTE="$(git remote get-url origin 2>/dev/null || echo unknown)"
 GIT_COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 BUILD_VERSION="${GIT_REMOTE}#${GIT_COMMIT}"
-BUILD_LDFLAGS="-X github.com/topdata/node-agent/cmd.version=${BUILD_VERSION}"
+BUILD_LDFLAGS="-s -w -X github.com/topdata/node-agent/cmd.version=${BUILD_VERSION}"
 
 if [ "$DEPLOY_ONLY" -eq 0 ]; then
     echo "==> Cross-compiling topdata-agent binaries"

@@ -56,10 +56,32 @@
           ./deploy/deploy-to-prod.sh or: GOOS=linux GOARCH={{ agent_arch }} go build -o deploy/bin/topdata-agent-{{ agent_arch }} .
       when: not local_bin.stat.exists
 
-    - name: Copy agent binary
-      ansible.builtin.copy:
+    - name: Verify target rsync supports zstd (>= 3.2.0)
+      ansible.builtin.command: rsync --version
+      register: rsync_ver
+      changed_when: false
+
+    - name: Fail fast if target rsync is too old for zstd
+      ansible.builtin.fail:
+        msg: >-
+          rsync >= 3.2.0 with zstd support is required on the target; got:
+          {{ rsync_ver.stdout_lines[0] }}
+      when: rsync_ver.stdout is not regex('version 3\.[2-9]|version [4-9]')
+
+    - name: Copy agent binary (stripped + zstd-compressed rsync)
+      ansible.posix.synchronize:
         src: "{{ playbook_dir }}/bin/topdata-agent-{{ agent_arch }}"
         dest: "{{ agent_bin }}"
+        compress: yes
+        compress_choice: zstd
+        compress_level: 3
+        perms: yes
+        checksum: yes
+      delegate_to: localhost
+
+    - name: Ensure binary is executable
+      ansible.builtin.file:
+        path: "{{ agent_bin }}"
         mode: "0755"
 
     - name: Render environment file
