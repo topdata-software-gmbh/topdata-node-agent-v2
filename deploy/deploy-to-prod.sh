@@ -70,4 +70,16 @@ if [ "$BUILD_ONLY" -eq 0 ]; then
     echo
     echo "Scrape targets (credentials from deploy/vars/vault.yml):"
     awk '/^\[agent\]/{in_agent=1; next} /^\[/{in_agent=0} in_agent && /ansible_host=/{sub(/^.*ansible_host=/, ""); sub(/ .*$/, ""); print "  http://<user>:<pass>@" $0 ":9144/metrics"}' deploy/hosts.ini
+    echo
+    echo "Prometheus scraper config (drop into config/scrapes/topdata-agent.yaml"
+    echo "next to config/prometheus.yaml, which already loads scrapes/*.yaml):"
+    echo "scrape_configs:"
+    echo "    -   job_name: 'topdata-agent'"
+    echo "        scrape_interval: 30s"
+    echo "        static_configs:"
+    echo "            -   targets:"
+    awk '/^\[agent\]/{in_agent=1; next} /^\[/{in_agent=0} in_agent && /ansible_host=/{sub(/^.*ansible_host=/, ""); sub(/ .*$/, ""); print "                    - \"" $0 ":9144\""}' deploy/hosts.ini
+    echo "        basic_auth:"
+    echo "            username: <auth_username>"
+    echo "            password: <auth_password>"
 fi
