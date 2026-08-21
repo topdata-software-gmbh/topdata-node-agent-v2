@@ -73,8 +73,9 @@
         src: "{{ playbook_dir }}/bin/topdata-agent-{{ agent_arch }}"
         dest: "{{ agent_bin }}"
         compress: yes
-        compress_choice: zstd
-        compress_level: 3
+        rsync_opts:
+          - "--compress-choice=zstd"
+          - "--compress-level=3"
         perms: yes
         checksum: yes
       delegate_to: localhost
