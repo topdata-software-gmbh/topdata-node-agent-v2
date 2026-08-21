@@ -34,19 +34,38 @@ var serveCmd = &cobra.Command{
 
 		monitor.SetShopsTotal(len(shops))
 
+		scanInterval := viper.GetDuration("disk.scan_interval")
+		if scanInterval <= 0 {
+			scanInterval = 6 * time.Hour
+		}
+		scanConcurrency := viper.GetInt("disk.scan_concurrency")
+		if scanConcurrency <= 0 {
+			scanConcurrency = 1
+		}
+		excludeList := viper.GetStringSlice("disk.exclude")
+		if len(excludeList) == 0 {
+			excludeList = []string{"var/cache"}
+		}
+		maxDepth := viper.GetInt("disk.growth_max_depth")
+		if maxDepth <= 0 {
+			maxDepth = 3
+		}
+		stateFile := viper.GetString("disk.state_file")
+		if stateFile == "" {
+			stateFile = "/var/lib/topdata-agent/disk-state.json"
+		}
+
+		scanner := monitor.NewDiskScanner(scanInterval, scanConcurrency, excludeList, maxDepth, stateFile)
+		scanner.Start(shops)
+
 		for _, shop := range shops {
 			log.Printf("found shop %s (logs: %s)", shop.Name, shop.LogPath)
 			go monitor.TailLog(shop.Name, shop.LogPath)
-			go func(s discovery.Shop) {
-				for {
-					monitor.UpdateDiskUsage(s.Name, s.Path)
-					time.Sleep(1 * time.Hour)
-				}
-			}(shop)
 		}
 
 		log.Printf("listening on %s", viper.GetString("listen.address"))
 		http.Handle("/metrics", authMiddleware(promhttp.Handler()))
+		http.Handle("/disk-eaters", authMiddleware(scanner.Handler()))
 		log.Fatal(http.ListenAndServe(viper.GetString("listen.address"), nil))
 	},
 }
@@ -66,6 +85,11 @@ func authMiddleware(next http.Handler) http.Handler {
 func init() {
 	viper.SetDefault("shops.root", "/srv/topdata-shops/prod-shops")
 	viper.SetDefault("listen.address", ":9144")
+	viper.SetDefault("disk.scan_interval", 6*time.Hour)
+	viper.SetDefault("disk.scan_concurrency", 1)
+	viper.SetDefault("disk.exclude", []string{"var/cache"})
+	viper.SetDefault("disk.growth_max_depth", 3)
+	viper.SetDefault("disk.state_file", "/var/lib/topdata-agent/disk-state.json")
 	viper.SetEnvPrefix("TOPDATA_AGENT")
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()

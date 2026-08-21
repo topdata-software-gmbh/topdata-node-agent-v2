@@ -10,8 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - `shops.root` now points directly at the directory containing shop folders (no `prod-shops` suffix appended anymore). Default and deploy configs updated to `/srv/topdata-shops/prod-shops`; the real `deploy/vars/vault.yml` must be updated accordingly.
 - Removed the hardcoded default Basic Auth credentials (`admin`/`fete`). `TOPDATA_AGENT_AUTH_USERNAME` and `TOPDATA_AGENT_AUTH_PASSWORD` are now required: `serve` exits with an error at startup if they are not set.
+- Replaced the per-shop hourly `du -sb` goroutine (which fired 18 concurrent `du` processes on the hour and saturated disk I/O) with a single `DiskScanner`: a pure-Go `WalkDir` per shop, throttled by a concurrency semaphore (default 1) and de-synchronized via a per-shop phase offset. This bounds disk pressure regardless of shop count. The `shopware_shop_disk_usage_bytes` gauge now excludes configured directories (default `var/cache`).
 
 ### Added
+- Config keys (env `TOPDATA_AGENT_DISK_*`): `scan_interval` (default `6h`), `scan_concurrency` (default `1`), `exclude` (default `var/cache`, comma-separated), `growth_max_depth` (default `3`), `state_file` (default `/var/lib/topdata-agent/disk-state.json`).
+- New `/disk-eaters` endpoint (Basic Auth, same middleware as `/metrics`): ranks directories by disk-growth rate across scans. Supports `?shop=`, `?top=`, `?by=rate|size` and returns JSON or a `text/plain` table (via `Accept` header). Driven by the same periodic walk that feeds the disk-usage gauge.
 - `serve --shops-root` and `serve --listen-address` CLI flags to override the shops root directory and listen address (take precedence over `TOPDATA_AGENT_*` env vars when set).
 - `deploy-to-prod.sh` now supports `-h|--help` (with a `usage()` function and doc header), `--build-only` (cross-compile only), `--deploy-only` (skip build, run ansible-playbook only), and passes any other argument (e.g. `--limit arm1`, `--check`, `-vvv`) through to ansible-playbook unchanged for single-server testing.
 - Startup logging: prints agent version, shops root, discovered shops, and listen address.

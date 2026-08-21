@@ -2,6 +2,7 @@ package monitor
 
 import (
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -35,6 +36,10 @@ func TailLog(shopName, logDir string) {
 				ReOpen:    true,
 				MustExist: false,
 				Poll:      true,
+				// Start at the end of the file so a (re)start does not replay
+				// the day's already-logged CRITICAL lines; the counter begins
+				// from 0 (new lines only).
+				Location: &tail.SeekInfo{Offset: 0, Whence: io.SeekEnd},
 			})
 			if err != nil {
 				time.Sleep(10 * time.Second)
