@@ -243,7 +243,26 @@ func (d *DiskScanner) Start(shops []discovery.Shop) {
 	}
 }
 
+// humanBytes renders a byte count as a short human-readable string (e.g. 1.5G).
+func humanBytes(b int64) string {
+	const unit = 1024
+	if b < unit {
+		return fmt.Sprintf("%dB", b)
+	}
+	div, exp := int64(unit), 0
+	for n := b / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f%c", float64(b)/float64(div), "KMGTPE"[exp])
+}
+
 // Handler serves the /disk-eaters ranking behind basic auth.
+//
+// Output format is chosen by `?format=json|text|markdown`; if absent it falls
+// back to content negotiation via the Accept header (text/plain or
+// text/markdown) and finally defaults to JSON. This lets the listing be viewed
+// directly in a browser by appending `?format=text` or `?format=markdown`.
 func (d *DiskScanner) Handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		shop := r.URL.Query().Get("shop")
@@ -259,16 +278,36 @@ func (d *DiskScanner) Handler() http.Handler {
 		}
 		growers := d.TopGrowers(shop, top, by)
 
-		if strings.Contains(r.Header.Get("Accept"), "text/plain") {
-			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-			fmt.Fprintf(w, "%-28s %-42s %15s %15s\n", "SHOP", "PATH", "SIZE", "GROWTH/h")
-			for _, g := range growers {
-				fmt.Fprintf(w, "%-28s %-42s %15d %15.0f\n", g.Shop, g.Path, g.SizeBytes, g.GrowthBytesPerHour)
+		format := r.URL.Query().Get("format")
+		if format == "" {
+			accept := r.Header.Get("Accept")
+			switch {
+			case strings.Contains(accept, "text/markdown"):
+				format = "markdown"
+			case strings.Contains(accept, "text/plain"):
+				format = "text"
+			default:
+				format = "json"
 			}
-			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(growers)
+		switch format {
+		case "text":
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			fmt.Fprintf(w, "%-28s %-42s %12s %12s\n", "SHOP", "PATH", "SIZE", "GROWTH/h")
+			for _, g := range growers {
+				fmt.Fprintf(w, "%-28s %-42s %12s %12s\n", g.Shop, g.Path, humanBytes(g.SizeBytes), humanBytes(int64(g.GrowthBytesPerHour)))
+			}
+		case "markdown":
+			w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+			fmt.Fprintf(w, "| %s | %s | %s | %s |\n", "Shop", "Path", "Size", "Growth/h")
+			fmt.Fprintf(w, "| --- | --- | ---: | ---: |\n")
+			for _, g := range growers {
+				fmt.Fprintf(w, "| %s | %s | %s | %s |\n", g.Shop, g.Path, humanBytes(g.SizeBytes), humanBytes(int64(g.GrowthBytesPerHour)))
+			}
+		default:
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(growers)
+		}
 	})
 }
