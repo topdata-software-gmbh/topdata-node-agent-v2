@@ -51,16 +51,17 @@ fi
 
 cd "$(dirname "$0")/.."
 
-GIT_REMOTE="$(git remote get-url origin 2>/dev/null || echo unknown)"
-GIT_COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
-BUILD_VERSION="${GIT_REMOTE}#${GIT_COMMIT}"
-BUILD_LDFLAGS="-s -w -X github.com/topdata/node-agent/cmd.version=${BUILD_VERSION}"
+# Version baked into the binary via -ldflags. `git describe --tags --always`
+# yields the exact tag (e.g. `v1.2.0`) when HEAD is on a tag, or
+# `v1.2.0-3-gabc123` between tags — so every build reports a meaningful,
+# traceable version regardless of whether a release tag exists.
+GIT_VERSION="$(git describe --tags --always 2>/dev/null || echo dev)"
+BUILD_LDFLAGS="-s -w -X github.com/topdata/node-agent/cmd.version=${GIT_VERSION}"
 
 if [ "$DEPLOY_ONLY" -eq 0 ]; then
     echo "==> Cross-compiling topdata-agent binaries"
     echo "    go:       $(go version)"
-    echo "    remote:   ${GIT_REMOTE}"
-    echo "    commit:   ${GIT_COMMIT}"
+    echo "    version:  ${GIT_VERSION}"
     echo "    module:   $(head -1 go.mod)"
     echo "    building: deploy/bin/topdata-agent-arm64 (linux/arm64)"
     GOOS=linux GOARCH=arm64 go build -ldflags "${BUILD_LDFLAGS}" -o deploy/bin/topdata-agent-arm64 .

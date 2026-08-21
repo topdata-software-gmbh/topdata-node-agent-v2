@@ -16,6 +16,10 @@ There are no test files — `go test` is empty. Smoke-test manually: run `serve`
 
 `deploy/` deploys the agent to all 10 shop-hosting servers (`deploy/hosts.ini`; arch picked per host via `ansible_facts.architecture`). `./deploy/deploy-to-prod.sh` cross-compiles both arches into `deploy/bin/` (gitignored) and runs the playbook with `--ask-vault-pass`. Secrets live in the ansible-vault file `deploy/vars/vault.yml` (gitignored; see `vault.example.yml`) with keys `auth_username`, `auth_password`, `shops_root`. The agent `log.Fatal`s at startup if the shops directory is missing, so the smoke test in the playbook will fail on a server where it does not exist yet. The real `vault.yml` must be edited (`ansible-vault edit`) to update `shops_root` after the `prod-shops` semantics change.
 
+### Releases (SemVer + auto-deploy)
+
+Releases are cut by `scripts/deploy/deploy-next-version.sh` (modeled on `tradeguard-app`). It presents an arrow-key Patch/Minor/Major menu, then: rotates `CHANGELOG.md` (`[Unreleased]` → `[vX.Y.Z] - DATE`, with a fresh `[Unreleased]`), commits it, creates an **annotated** git tag at that commit, pushes `main` + the tag, and finally calls `deploy/deploy-to-prod.sh` to build and roll out that exact version. The built binary's `--version` is set from `git describe --tags --always` (exact tag on a release, `vX.Y.Z-N-ghash` between), so `--version` always reports a traceable SemVer. Tags are the canonical record of shipped versions; there is no CI — the local script is the release mechanism. Any extra arg (e.g. `--limit arm1`) is forwarded to `deploy-to-prod.sh`.
+
 ## Build gotcha: fsnotify `replace`
 
 `go.mod` carries `replace gopkg.in/fsnotify.v1 => github.com/fsnotify/fsnotify v1.4.7`. It is **required**: the archived `hpcloud/tail` dependency fails to build without it (mismatched module path). Do not remove it when tidying. ADR notes `github.com/nxadm/tail` as the planned follow-up to drop it.
