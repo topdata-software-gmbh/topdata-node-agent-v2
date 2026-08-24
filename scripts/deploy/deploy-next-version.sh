@@ -33,6 +33,10 @@ Interactive semantic-version release helper. Calculates the next Patch / Minor
 creates an annotated tag, pushes it, and triggers deploy/deploy-to-prod.sh to
 build + deploy that exact version.
 
+Selecting the first menu entry ("Deploy existing vX.Y.Z") skips the tag +
+CHANGELOG step and re-deploys the latest existing tag as-is (handy for a
+single-server test via --limit arm1).
+
 Any argument (e.g. --limit arm1) is forwarded to deploy/deploy-to-prod.sh.
 EOF
 }
@@ -114,7 +118,7 @@ NEXT_MAJOR="$((MAJOR + 1)).0.0"
 
 # ── interactive arrow-key menu ───────────────────────────────────────────────
 OPTIONS=(
-    "No release — exit without tagging   ($CURRENT)"
+    "Deploy existing v$CURRENT — no new tag, no CHANGELOG rotation"
     "Patch        $NEXT_PATCH         — backward-compatible bug fixes"
     "Minor        $NEXT_MINOR         — backward-compatible new features"
     "Major        $NEXT_MAJOR         — breaking / incompatible API changes"
@@ -165,10 +169,13 @@ done
 echo
 
 # ── act on selection ─────────────────────────────────────────────────────────
+DEPLOY_EXISTING=0
 case "$SELECTED" in
     0)
-        echo "No release selected. Exiting."
-        exit 0
+        # Re-deploy the latest existing tag unchanged (e.g. test on a single
+        # host via `--limit arm1`); no CHANGELOG rotation, no new tag.
+        DEPLOY_EXISTING=1
+        NEXT_VERSION="$CURRENT"
         ;;
     1) NEXT_VERSION="$NEXT_PATCH" ;;
     2) NEXT_VERSION="$NEXT_MINOR" ;;
@@ -178,61 +185,89 @@ esac
 TAG_NAME="v$NEXT_VERSION"
 RELEASE_DATE="$(date +%Y-%m-%d)"
 
-# Abort if tag already exists
-if git tag -l "$TAG_NAME" | grep -q "^${TAG_NAME}$"; then
-    die "Tag $TAG_NAME already exists locally or on origin."
-fi
+if [ "$DEPLOY_EXISTING" -eq 1 ]; then
+    # Validate the tag actually exists before redeploying it.
+    git tag -l "$TAG_NAME" | grep -q "^${TAG_NAME}$" \
+        || die "Tag $TAG_NAME does not exist locally — cannot redeploy it."
 
-# ── final confirmation ───────────────────────────────────────────────────────
-echo -e "Ready to release \033[32m$TAG_NAME\033[0m"
-read -rp "Rotate CHANGELOG, tag, push, and deploy? (Y/n) " _confirm
-echo
-if [[ "$_confirm" =~ ^[Nn]$ ]]; then
-    echo "Aborted."; exit 0
-fi
+    # ── final confirmation ───────────────────────────────────────────────────
+    echo -e "Ready to deploy existing \033[32m$TAG_NAME\033[0m unchanged"
+    read -rp "Build at $TAG_NAME and deploy? (Y/n) " _confirm
+    echo
+    if [[ "$_confirm" =~ ^[Nn]$ ]]; then
+        echo "Aborted."; exit 0
+    fi
 
-# ── rotate CHANGELOG.md ──────────────────────────────────────────────────────
-# Replace the first `## [Unreleased]` heading with `## [vX.Y.Z] - DATE`, and
-# insert a fresh `## [Unreleased]` before the next (previous release) heading.
-echo "Rotating CHANGELOG.md → $TAG_NAME…"
-awk -v ver="## [$TAG_NAME] - $RELEASE_DATE" '
-    BEGIN { seen=0; inserted=0 }
-    /^## / && !seen {
-        sub(/^## \[Unreleased\]$/, ver)
-        seen=1
-        print
-        next
-    }
-    /^## / && seen && !inserted {
-        print "## [Unreleased]"
-        print ""
-        inserted=1
-    }
-    { print }
-    END {
-        if (seen && !inserted) {
+    # ── build + deploy the exact existing tag ────────────────────────────────
+    # Check out the tag (detached HEAD) so `git describe` bakes the exact
+    # version, then restore the previous ref afterwards.
+    PREV_REF="$(git rev-parse --abbrev-ref HEAD)"
+    [ "$PREV_REF" = "HEAD" ] && PREV_REF="$(git rev-parse HEAD)"
+    echo "Checking out $TAG_NAME for build…"
+    git checkout --quiet "$TAG_NAME"
+    trap 'git checkout --quiet '"$PREV_REF"' 2>/dev/null || true; printf "\033[?25h"' EXIT
+
+    echo "Running deploy/deploy-to-prod.sh (version via git describe)…"
+    "$DEPLOY_SCRIPT" "${ANSIBLE_ARGS[@]}"
+
+    echo -e "\033[32m✓ Deployed existing $TAG_NAME.\033[0m"
+else
+    # Abort if tag already exists
+    if git tag -l "$TAG_NAME" | grep -q "^${TAG_NAME}$"; then
+        die "Tag $TAG_NAME already exists locally or on origin."
+    fi
+
+    # ── final confirmation ───────────────────────────────────────────────────
+    echo -e "Ready to release \033[32m$TAG_NAME\033[0m"
+    read -rp "Rotate CHANGELOG, tag, push, and deploy? (Y/n) " _confirm
+    echo
+    if [[ "$_confirm" =~ ^[Nn]$ ]]; then
+        echo "Aborted."; exit 0
+    fi
+
+    # ── rotate CHANGELOG.md ──────────────────────────────────────────────────
+    # Replace the first `## [Unreleased]` heading with `## [vX.Y.Z] - DATE`, and
+    # insert a fresh `## [Unreleased]` before the next (previous release) heading.
+    echo "Rotating CHANGELOG.md → $TAG_NAME…"
+    awk -v ver="## [$TAG_NAME] - $RELEASE_DATE" '
+        BEGIN { seen=0; inserted=0 }
+        /^## / && !seen {
+            sub(/^## \[Unreleased\]$/, ver)
+            seen=1
+            print
+            next
+        }
+        /^## / && seen && !inserted {
             print "## [Unreleased]"
             print ""
+            inserted=1
         }
-    }
-' "$CHANGELOG" > "$CHANGELOG.tmp" && mv "$CHANGELOG.tmp" "$CHANGELOG"
+        { print }
+        END {
+            if (seen && !inserted) {
+                print "## [Unreleased]"
+                print ""
+            }
+        }
+    ' "$CHANGELOG" > "$CHANGELOG.tmp" && mv "$CHANGELOG.tmp" "$CHANGELOG"
 
-git add "$CHANGELOG"
-git commit -m "chore(release): $TAG_NAME"
-echo -e "\033[32m✓ CHANGELOG rotated and committed.\033[0m"
+    git add "$CHANGELOG"
+    git commit -m "chore(release): $TAG_NAME"
+    echo -e "\033[32m✓ CHANGELOG rotated and committed.\033[0m"
 
-# ── create + push tag (at the changelog commit) ─────────────────────────────
-echo "Creating annotated tag $TAG_NAME…"
-git tag -a "$TAG_NAME" -m "Release $TAG_NAME"
+    # ── create + push tag (at the changelog commit) ──────────────────────────
+    echo "Creating annotated tag $TAG_NAME…"
+    git tag -a "$TAG_NAME" -m "Release $TAG_NAME"
 
-echo "Pushing main and tag to origin…"
-git push origin main
-git push origin "$TAG_NAME"
+    echo "Pushing main and tag to origin…"
+    git push origin main
+    git push origin "$TAG_NAME"
 
-echo -e "\033[32m✓ Tag $TAG_NAME pushed.\033[0m"
+    echo -e "\033[32m✓ Tag $TAG_NAME pushed.\033[0m"
 
-# ── build + deploy that exact version ───────────────────────────────────────
-echo "Running deploy/deploy-to-prod.sh (version via git describe)…"
-"$DEPLOY_SCRIPT" "${ANSIBLE_ARGS[@]}"
+    # ── build + deploy that exact version ────────────────────────────────────
+    echo "Running deploy/deploy-to-prod.sh (version via git describe)…"
+    "$DEPLOY_SCRIPT" "${ANSIBLE_ARGS[@]}"
 
-echo -e "\033[32m✓ Released and deployed $TAG_NAME.\033[0m"
+    echo -e "\033[32m✓ Released and deployed $TAG_NAME.\033[0m"
+fi
