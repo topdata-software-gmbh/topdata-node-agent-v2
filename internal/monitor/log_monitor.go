@@ -1,6 +1,7 @@
 package monitor
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"strings"
@@ -18,18 +19,33 @@ var (
 	}, []string{"shop"})
 )
 
-func TailLog(shopName, logDir string) {
+// TailLog tails the shop's daily Shopware log until ctx is cancelled. It counts
+// lines matching .CRITICAL: or [critical] into the critical-errors counter and
+// restarts the tail at midnight to follow the new daily file. The midnight
+// rotation watchdog and Poll:true behaviour are preserved verbatim.
+func TailLog(ctx context.Context, shopName, logDir string) {
 	var current *tail.Tail
 	var lastDay string
 
+	stop := func() {
+		if current != nil {
+			current.Stop()
+			current.Cleanup()
+			current = nil
+		}
+	}
+	defer stop()
+
 	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
 		day := time.Now().Format("2006-01-02")
 		if day != lastDay {
-			if current != nil {
-				current.Stop()
-				current.Cleanup()
-				current = nil
-			}
+			stop()
 			lastDay = day
 			next, err := tail.TailFile(fmt.Sprintf("%s/prod-%s.log", logDir, day), tail.Config{
 				Follow:    true,
@@ -45,7 +61,9 @@ func TailLog(shopName, logDir string) {
 				Location: &tail.SeekInfo{Offset: 0, Whence: io.SeekEnd},
 			})
 			if err != nil {
-				time.Sleep(10 * time.Second)
+				if !sleepCtx(ctx, 10*time.Second) {
+					return
+				}
 				continue
 			}
 			current = next
@@ -57,6 +75,24 @@ func TailLog(shopName, logDir string) {
 				}
 			}(current)
 		}
-		time.Sleep(30 * time.Second)
+
+		if !sleepCtx(ctx, 30*time.Second) {
+			return
+		}
+	}
+}
+
+// RemoveShopLog deletes the critical-errors series for a removed shop.
+func RemoveShopLog(shop string) {
+	criticalErrors.DeleteLabelValues(shop)
+}
+
+// sleepCtx sleeps for d, returning false early if ctx is cancelled.
+func sleepCtx(ctx context.Context, d time.Duration) bool {
+	select {
+	case <-ctx.Done():
+		return false
+	case <-time.After(d):
+		return true
 	}
 }

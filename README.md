@@ -6,8 +6,11 @@ runtime dependencies.
 
 ## Architecture
 
-- **Discovery**: scans `shops.root` for active Shopware 6 shops (identified by a
-  `vol/www/var/log` directory). Each matching subdirectory is treated as one shop.
+- **Discovery**: periodically scans `shops.root` for active Shopware 6 shops
+  (identified by a `vol/www/var/log` directory), every `discovery.interval`
+  (default 15m). Each matching subdirectory is treated as one shop. Shops added
+  after startup are picked up automatically and removed shops are stopped (their
+  metric series deleted) without restarting the agent.
 - **Log monitoring**: tails each shop's `vol/www/var/log/prod-YYYY-MM-DD.log` in real-time
   and counts `[CRITICAL]` entries. The tail automatically restarts when the date
   changes to follow the new daily log file.
@@ -26,6 +29,7 @@ with the following defaults:
 | `TOPDATA_AGENT_AUTH_USERNAME` | *(required)* | Basic Auth username for `/metrics` |
 | `TOPDATA_AGENT_AUTH_PASSWORD` | *(required)* | Basic Auth password for `/metrics` |
 | `TOPDATA_AGENT_LISTEN_ADDRESS` | `:9144` | Listen address of the metrics endpoint |
+| `TOPDATA_AGENT_DISCOVERY_INTERVAL` | `15m` | How often the agent re-scans `shops.root` for added/removed shops. Shops added later are monitored automatically; removed shops are stopped and their metric series deleted — no service restart required. |
 
 > `TOPDATA_AGENT_AUTH_USERNAME` and `TOPDATA_AGENT_AUTH_PASSWORD` are required —
 > the agent refuses to start without them. Set them via the systemd

@@ -1,6 +1,7 @@
 package monitor
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -220,27 +221,48 @@ func (d *DiskScanner) TopGrowers(shop string, top int, by string) []Grower {
 	return all
 }
 
-// Start launches one goroutine per shop. The first scan runs promptly at boot
-// (serialized through the semaphore so there is no disk storm), then each shop
-// settles into its own phase (a fixed random offset within the interval) so the
-// scans stay permanently desynchronized and never realign into a hourly spike.
-func (d *DiskScanner) Start(shops []discovery.Shop) {
-	for _, s := range shops {
-		go func(sh discovery.Shop) {
-			time.Sleep(time.Duration(rand.Int63n(int64(30 * time.Second)))) // small boot spread
-			d.sem <- struct{}{}
-			d.scanShop(sh)
-			<-d.sem
+// StartShop runs the periodic disk scan for a single shop until ctx is
+// cancelled. The first scan runs promptly (serialized through the semaphore),
+// then the shop settles into its own fixed random phase so scans stay
+// permanently desynchronized and never realign into a spike.
+func (d *DiskScanner) StartShop(ctx context.Context, shop discovery.Shop) {
+	go func() {
+		select {
+		case <-time.After(time.Duration(rand.Int63n(int64(30 * time.Second)))): // small boot spread
+		case <-ctx.Done():
+			return
+		}
 
-			offset := time.Duration(rand.Int63n(int64(d.interval))) // fixed phase for this shop
-			for {
-				time.Sleep(d.interval + offset)
+		d.sem <- struct{}{}
+		d.scanShop(shop)
+		<-d.sem
+
+		offset := time.Duration(rand.Int63n(int64(d.interval))) // fixed phase for this shop
+		timer := time.NewTimer(d.interval + offset)
+		defer timer.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-timer.C:
 				d.sem <- struct{}{}
-				d.scanShop(sh)
+				d.scanShop(shop)
 				<-d.sem
+				timer.Reset(d.interval + offset)
 			}
-		}(s)
-	}
+		}
+	}()
+}
+
+// RemoveShop stops tracking a shop: it deletes the disk-usage series and the
+// shop's per-directory growth state so /metrics and /disk-eaters no longer
+// report it.
+func (d *DiskScanner) RemoveShop(shop string) {
+	diskUsage.DeleteLabelValues(shop)
+	d.mu.Lock()
+	delete(d.state, shop)
+	delete(d.growers, shop)
+	d.mu.Unlock()
 }
 
 // humanBytes renders a byte count as a short human-readable string (e.g. 1.5G).

@@ -3,7 +3,8 @@ filename: "_ai/backlog/active/260824_1441__IMPLEMENTATION_PLAN__periodic-shop-di
 title: "Periodic shop discovery (discovery.interval) so added/removed shops are picked up without restart"
 createdAt: 2026-08-24 14:41
 updatedAt: 2026-08-24 14:41
-status: draft
+status: completed
+completedAt: 2026-08-24 15:47
 priority: medium
 tags: [discovery, lifecycle, goroutines, metrics, config]
 estimatedComplexity: moderate

@@ -7,9 +7,5 @@ import (
 
 var shopsTotal = promauto.NewGauge(prometheus.GaugeOpts{
 	Name: "topdata_agent_shops_total",
-	Help: "Total number of Shopware shops discovered by the agent",
+	Help: "Total number of Shopware shops currently monitored by the agent",
 })
-
-func SetShopsTotal(n int) {
-	shopsTotal.Set(float64(n))
-}

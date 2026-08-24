@@ -11,7 +11,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/topdata/node-agent/internal/discovery"
 	"github.com/topdata/node-agent/internal/monitor"
 )
 
@@ -20,8 +19,11 @@ var startTime = time.Now()
 var agentInfo = struct {
 	ListenAddress string
 	ShopsRoot     string
-	ShopsTotal    int
 }{}
+
+// shopCount reports the number of currently monitored shops. It is set by the
+// supervisor in Run so the live count is available to the /info handler.
+var shopCount func() int = func() int { return 0 }
 
 var serveCmd = &cobra.Command{
 	Use:   "serve",
@@ -34,19 +36,13 @@ var serveCmd = &cobra.Command{
 		log.Printf("topdata-agent %s starting", version)
 		log.Printf("shops root: %s", viper.GetString("shops.root"))
 
-		shops, err := discovery.FindShops(viper.GetString("shops.root"))
-		if err != nil {
-			log.Fatalf("discovery failed: %v", err)
+		discoveryInterval := viper.GetDuration("discovery.interval")
+		if discoveryInterval <= 0 {
+			discoveryInterval = 15 * time.Minute
 		}
-		if len(shops) == 0 {
-			log.Printf("no shops found under %s", viper.GetString("shops.root"))
-		}
-
-		monitor.SetShopsTotal(len(shops))
 
 		agentInfo.ListenAddress = viper.GetString("listen.address")
 		agentInfo.ShopsRoot = viper.GetString("shops.root")
-		agentInfo.ShopsTotal = len(shops)
 
 		scanInterval := viper.GetDuration("disk.scan_interval")
 		if scanInterval <= 0 {
@@ -70,12 +66,9 @@ var serveCmd = &cobra.Command{
 		}
 
 		scanner := monitor.NewDiskScanner(scanInterval, scanConcurrency, excludeList, maxDepth, stateFile)
-		scanner.Start(shops)
-
-		for _, shop := range shops {
-			log.Printf("found shop %s (logs: %s)", shop.Name, shop.LogPath)
-			go monitor.TailLog(shop.Name, shop.LogPath)
-		}
+		supervisor := monitor.NewShopSupervisor(viper.GetString("shops.root"), discoveryInterval, scanner)
+		shopCount = supervisor.Count
+		go supervisor.Run()
 
 		log.Printf("listening on %s", viper.GetString("listen.address"))
 		http.HandleFunc("/healthz", healthzHandler)
@@ -113,7 +106,7 @@ func infoHandler(w http.ResponseWriter, r *http.Request) {
 		StartedAt:     startTime.Format(time.RFC3339),
 		ListenAddress: agentInfo.ListenAddress,
 		ShopsRoot:     agentInfo.ShopsRoot,
-		ShopsTotal:    agentInfo.ShopsTotal,
+		ShopsTotal:    shopCount(),
 	}
 
 	format := r.URL.Query().Get("format")
@@ -199,6 +192,7 @@ func init() {
 	viper.SetDefault("disk.exclude", []string{"var/cache"})
 	viper.SetDefault("disk.growth_max_depth", 3)
 	viper.SetDefault("disk.state_file", "/var/lib/topdata-agent/disk-state.json")
+	viper.SetDefault("discovery.interval", 15*time.Minute)
 	viper.SetEnvPrefix("TOPDATA_AGENT")
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()
