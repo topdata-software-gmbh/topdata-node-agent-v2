@@ -32,6 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cobra-based CLI with a single `serve` command.
 ## [Unreleased]
 
+## [Unreleased]
+
 ### Added
 - `discovery.interval` (env `TOPDATA_AGENT_DISCOVERY_INTERVAL`, default `15m`): the agent now re-discovers shops periodically. Added shops are monitored automatically; removed shops are stopped and their Prometheus series removed — no service restart required. `/info`'s `shops_total` is now live.
 
