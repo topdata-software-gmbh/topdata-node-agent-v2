@@ -70,6 +70,7 @@ func TailLog(ctx context.Context, shopName, logDir string) {
 			go func(t *tail.Tail) {
 				for line := range t.Lines {
 					if strings.Contains(line.Text, ".CRITICAL:") || strings.Contains(line.Text, "[critical]") {
+						recordCritical(shopName, line.Text)
 						criticalErrors.WithLabelValues(shopName).Inc()
 					}
 				}
@@ -82,9 +83,11 @@ func TailLog(ctx context.Context, shopName, logDir string) {
 	}
 }
 
-// RemoveShopLog deletes the critical-errors series for a removed shop.
+// RemoveShopLog deletes the critical-errors series and buffered error lines
+// for a removed shop.
 func RemoveShopLog(shop string) {
 	criticalErrors.DeleteLabelValues(shop)
+	removeShopCritical(shop)
 }
 
 // sleepCtx sleeps for d, returning false early if ctx is cancelled.

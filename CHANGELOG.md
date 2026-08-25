@@ -32,10 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cobra-based CLI with a single `serve` command.
 ## [Unreleased]
 
-## [Unreleased]
-
-## [Unreleased]
-
 ### Added
+- `/critical-errors` endpoint (Basic Auth, same middleware as `/metrics`): reports the most recent critical Shopware error lines per shop from an in-memory ring buffer (100 lines/shop, full untruncated messages). Supports `?shop=<name>`, `?limit=N` (default 20, capped at 100) and `?format=json|text|markdown` with the usual `Accept`-header fallback. Entries carry timestamps and survive midnight log rotation; history resets on agent restart (the payload includes `agent_started_at`). Removed shops are purged together with their Prometheus series.
+- First unit tests (`internal/monitor/error_buffer_test.go`) covering buffer eviction, snapshots and endpoint rendering.
 - `discovery.interval` (env `TOPDATA_AGENT_DISCOVERY_INTERVAL`, default `15m`): the agent now re-discovers shops periodically. Added shops are monitored automatically; removed shops are stopped and their Prometheus series removed — no service restart required. `/info`'s `shops_total` is now live.
 

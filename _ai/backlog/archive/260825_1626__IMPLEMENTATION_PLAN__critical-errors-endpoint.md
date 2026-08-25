@@ -2,8 +2,9 @@
 filename: "_ai/backlog/active/260825_1626__IMPLEMENTATION_PLAN__critical-errors-endpoint.md"
 title: "New /critical-errors endpoint: recent critical errors per shop"
 createdAt: 2026-08-25 16:26
-updatedAt: 2026-08-25 16:26
-status: draft
+updatedAt: 2026-08-25 16:53
+status: completed
+completedAt: 2026-08-25 16:54
 priority: medium
 tags: [golang, http-api, monitoring, observability]
 estimatedComplexity: simple
@@ -749,7 +750,8 @@ createdAt: YYYY-MM-DD HH:mm
 updatedAt: YYYY-MM-DD HH:mm
 planFile: "_ai/backlog/active/260825_1626__IMPLEMENTATION_PLAN__critical-errors-endpoint.md"
 project: "topdata-node-agent-v2"
-status: completed|partial|blocked
+status: completed
+completedAt: 2026-08-25 16:54
 filesCreated: 2
 filesModified: 4
 filesDeleted: 0

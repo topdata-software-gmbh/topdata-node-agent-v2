@@ -75,6 +75,7 @@ var serveCmd = &cobra.Command{
 		http.Handle("/metrics", authMiddleware(promhttp.Handler()))
 		http.Handle("/disk-eaters", authMiddleware(scanner.Handler()))
 		http.Handle("/info", authMiddleware(http.HandlerFunc(infoHandler)))
+		http.Handle("/critical-errors", authMiddleware(monitor.CriticalErrorsHandler(startTime)))
 		log.Fatal(http.ListenAndServe(viper.GetString("listen.address"), nil))
 	},
 }
@@ -92,13 +93,13 @@ func healthzHandler(w http.ResponseWriter, r *http.Request) {
 // and finally JSON.
 func infoHandler(w http.ResponseWriter, r *http.Request) {
 	data := struct {
-		Version        string  `json:"version"`
-		UptimeSeconds  float64 `json:"uptime_seconds"`
-		Uptime         string  `json:"uptime"`
-		StartedAt      string  `json:"started_at"`
-		ListenAddress  string  `json:"listen_address"`
-		ShopsRoot      string  `json:"shops_root"`
-		ShopsTotal     int     `json:"shops_total"`
+		Version       string  `json:"version"`
+		UptimeSeconds float64 `json:"uptime_seconds"`
+		Uptime        string  `json:"uptime"`
+		StartedAt     string  `json:"started_at"`
+		ListenAddress string  `json:"listen_address"`
+		ShopsRoot     string  `json:"shops_root"`
+		ShopsTotal    int     `json:"shops_total"`
 	}{
 		Version:       version,
 		UptimeSeconds: time.Since(startTime).Seconds(),

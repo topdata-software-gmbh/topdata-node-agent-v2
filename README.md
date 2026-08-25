@@ -12,8 +12,9 @@ runtime dependencies.
   after startup are picked up automatically and removed shops are stopped (their
   metric series deleted) without restarting the agent.
 - **Log monitoring**: tails each shop's `vol/www/var/log/prod-YYYY-MM-DD.log` in real-time
-  and counts `[CRITICAL]` entries. The tail automatically restarts when the date
-  changes to follow the new daily log file.
+  and counts `[CRITICAL]` entries, keeping the last 100 full error lines per shop in
+  memory for the `/critical-errors` endpoint. The tail automatically restarts when the
+  date changes to follow the new daily log file.
 - **Host statistics**: periodically reports the disk usage of each shop directory.
 - **Metrics endpoint**: exposes Prometheus-compatible metrics on port `9144`,
   protected with HTTP Basic Auth.
@@ -49,6 +50,19 @@ directory name under `shops.root`.
 > The `shop` label value is the directory name discovered under `shops.root`
 > (e.g. `muster-shop`), not the full path.
 
+## Recent critical errors
+
+```sh
+curl -su USER:PASSWORD 'http://host:9144/critical-errors'                 # all shops, JSON
+curl -su USER:PASSWORD 'http://host:9144/critical-errors?shop=muster-shop'
+curl -su USER:PASSWORD 'http://host:9144/critical-errors?limit=5&format=markdown'
+```
+
+Returns the last critical log lines per shop (up to 100 kept in memory, full
+untruncated messages, newest first). Useful for quickly answering "what just
+broke?" without SSH. History starts empty after an agent restart;
+`agent_started_at` in the response tells you since when.
+
 ## Prometheus
 
 Scrape target: `http://USERNAME:PASSWORD@host:9144/metrics`
@@ -69,11 +83,11 @@ scrape_configs:
       password: PASSWORD
 ```
 
-The `/metrics` and `/disk-eaters` endpoints require Basic Auth. `/info` also
-requires Basic Auth and supports `?format=json|text|markdown` (plus `Accept`
-negotiation). The `/healthz` endpoint is **unauthenticated** and only returns
-`200 OK` while the process is listening — use it for liveness checks and the
-Ansible deploy smoke test.
+The `/metrics`, `/disk-eaters`, `/info` and `/critical-errors` endpoints
+require Basic Auth. `/info` and `/disk-eaters` support
+`?format=json|text|markdown` (plus `Accept` negotiation). The `/healthz`
+endpoint is **unauthenticated** and only returns `200 OK` while the process
+is listening — use it for liveness checks and the Ansible deploy smoke test.
 
 ## Deployment (Ansible)
 
