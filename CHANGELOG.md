@@ -34,6 +34,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- `/disk-eaters` now reports each directory's `SIZE` and `GROWTH/h` as a **residual**: the value minus its single biggest direct child (by size). Ancestors no longer echo their big children — they show only the unexplained remainder, and read `0` growth when all their growth is attributable to a child entry. The ranking is also deterministically stable on ties (growth → size, size → growth).
+
 ### Added
 - `/critical-errors` endpoint (Basic Auth, same middleware as `/metrics`): reports the most recent critical Shopware error lines per shop from an in-memory ring buffer (100 lines/shop, full untruncated messages). Supports `?shop=<name>`, `?limit=N` (default 20, capped at 100) and `?format=json|text|markdown` with the usual `Accept`-header fallback. Entries carry timestamps and survive midnight log rotation; history resets on agent restart (the payload includes `agent_started_at`). Removed shops are purged together with their Prometheus series.
 - First unit tests (`internal/monitor/error_buffer_test.go`) covering buffer eviction, snapshots and endpoint rendering.

@@ -195,24 +195,83 @@ func (d *DiskScanner) recordGrowth(shop string, sizes map[string]int64, now time
 	d.saveState()
 }
 
+// subtractChildren rewrites each directory's size and growth to exclude its
+// single biggest direct child (by size). A parent therefore reports only the
+// residual that is not already explained by a child entry, which keeps the
+// ranking informative instead of echoing the same big directory at every
+// ancestor level.
+func subtractChildren(growers []Grower) []Grower {
+	gross := make(map[string]Grower, len(growers))
+	for _, g := range growers {
+		gross[g.Path] = g
+	}
+	out := make([]Grower, len(growers))
+	for i, g := range growers {
+		ng := g
+		prefix := g.Path
+		if prefix != "" {
+			prefix += "/"
+		}
+		var best Grower
+		found := false
+		for _, c := range gross {
+			if c.Path == g.Path {
+				continue
+			}
+			if !strings.HasPrefix(c.Path, prefix) {
+				continue
+			}
+			rest := c.Path[len(prefix):]
+			if strings.Contains(rest, "/") {
+				continue // only immediate children
+			}
+			if !found || c.SizeBytes > best.SizeBytes {
+				best = c
+				found = true
+			}
+		}
+		if found {
+			ng.SizeBytes -= best.SizeBytes
+			ng.GrowthBytesPerHour -= best.GrowthBytesPerHour
+		}
+		out[i] = ng
+	}
+	return out
+}
+
 // TopGrowers returns the ranked directories, optionally scoped to one shop.
 func (d *DiskScanner) TopGrowers(shop string, top int, by string) []Grower {
 	d.mu.Lock()
-	var all []Grower
+	var groups [][]Grower
 	if shop == "" {
 		for _, l := range d.growers {
-			all = append(all, l...)
+			groups = append(groups, l)
 		}
 	} else {
-		all = append(all, d.growers[shop]...)
+		groups = append(groups, d.growers[shop])
 	}
 	d.mu.Unlock()
 
+	var all []Grower
+	for _, g := range groups {
+		all = append(all, subtractChildren(g)...)
+	}
+
 	switch by {
 	case "size":
-		sort.Slice(all, func(i, j int) bool { return all[i].SizeBytes > all[j].SizeBytes })
+		sort.SliceStable(all, func(i, j int) bool {
+			if all[i].SizeBytes == all[j].SizeBytes {
+				return all[i].GrowthBytesPerHour > all[j].GrowthBytesPerHour
+			}
+			return all[i].SizeBytes > all[j].SizeBytes
+		})
 	default: // "rate" / "delta" — growth per hour
-		sort.Slice(all, func(i, j int) bool { return all[i].GrowthBytesPerHour > all[j].GrowthBytesPerHour })
+		sort.SliceStable(all, func(i, j int) bool {
+			if all[i].GrowthBytesPerHour == all[j].GrowthBytesPerHour {
+				return all[i].SizeBytes > all[j].SizeBytes
+			}
+			return all[i].GrowthBytesPerHour > all[j].GrowthBytesPerHour
+		})
 	}
 
 	if top > 0 && len(all) > top {
