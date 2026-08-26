@@ -34,6 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [Unreleased]
+
 ### Changed
 - `/disk-eaters` now reports each directory's `SIZE` and `GROWTH/h` as a **residual**: the value minus its single biggest direct child (by size). Ancestors no longer echo their big children — they show only the unexplained remainder, and read `0` growth when all their growth is attributable to a child entry. The ranking is also deterministically stable on ties (growth → size, size → growth).
 
