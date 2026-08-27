@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -137,6 +138,17 @@ func infoHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Sort last_scan entries by scan time (oldest first) for stable output.
+	type scanEntry struct {
+		shop string
+		ts   int64
+	}
+	var scans []scanEntry
+	for shop, ts := range data.LastScan {
+		scans = append(scans, scanEntry{shop: shop, ts: ts})
+	}
+	sort.Slice(scans, func(i, j int) bool { return scans[i].ts < scans[j].ts })
+
 	switch format {
 	case "text":
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -146,8 +158,8 @@ func infoHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "%-16s %s\n", "listen_address", data.ListenAddress)
 		fmt.Fprintf(w, "%-16s %s\n", "shops_root", data.ShopsRoot)
 		fmt.Fprintf(w, "%-16s %d\n", "shops_total", data.ShopsTotal)
-		for shop, ts := range data.LastScan {
-			fmt.Fprintf(w, "%-16s %s %s\n", "last_scan", shop, time.Unix(ts, 0).Format(time.RFC3339))
+		for _, e := range scans {
+			fmt.Fprintf(w, "%-16s %s %s\n", "last_scan", e.shop, time.Unix(e.ts, 0).Format(time.RFC3339))
 		}
 		fmt.Fprintf(w, "%-16s %s\n", "last_discovery", data.LastDiscovery)
 	case "markdown":
@@ -160,8 +172,8 @@ func infoHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "| %s | %s |\n", "listen_address", data.ListenAddress)
 		fmt.Fprintf(w, "| %s | %s |\n", "shops_root", data.ShopsRoot)
 		fmt.Fprintf(w, "| %s | %d |\n", "shops_total", data.ShopsTotal)
-		for shop, ts := range data.LastScan {
-			fmt.Fprintf(w, "| %s | %s %s |\n", "last_scan", shop, time.Unix(ts, 0).Format(time.RFC3339))
+		for _, e := range scans {
+			fmt.Fprintf(w, "| %s | %s %s |\n", "last_scan", e.shop, time.Unix(e.ts, 0).Format(time.RFC3339))
 		}
 		fmt.Fprintf(w, "| %s | %s |\n", "last_discovery", data.LastDiscovery)
 	default:
