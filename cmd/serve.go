@@ -158,6 +158,7 @@ func infoHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "%-16s %s\n", "listen_address", data.ListenAddress)
 		fmt.Fprintf(w, "%-16s %s\n", "shops_root", data.ShopsRoot)
 		fmt.Fprintf(w, "%-16s %d\n", "shops_total", data.ShopsTotal)
+		fmt.Fprintf(w, "%-16s %s\n", "last_discovery", utcStamp(lastDiscovery()))
 		if len(scans) > 0 {
 			shopW := 0
 			for _, e := range scans {
@@ -170,7 +171,6 @@ func infoHandler(w http.ResponseWriter, r *http.Request) {
 				fmt.Fprintf(w, "%-16s %-*s %s\n", "last_scan", shopW, e.shop, utcStamp(time.Unix(e.ts, 0)))
 			}
 		}
-		fmt.Fprintf(w, "%-16s %s\n", "last_discovery", utcStamp(lastDiscovery()))
 	case "markdown":
 		w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
 		fmt.Fprintf(w, "| %s | %s |\n", "Field", "Value")
@@ -181,10 +181,10 @@ func infoHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "| %s | %s |\n", "listen_address", data.ListenAddress)
 		fmt.Fprintf(w, "| %s | %s |\n", "shops_root", data.ShopsRoot)
 		fmt.Fprintf(w, "| %s | %d |\n", "shops_total", data.ShopsTotal)
+		fmt.Fprintf(w, "| %s | %s |\n", "last_discovery", utcStamp(lastDiscovery()))
 		for _, e := range scans {
 			fmt.Fprintf(w, "| %s | %s %s |\n", "last_scan", e.shop, utcStamp(time.Unix(e.ts, 0)))
 		}
-		fmt.Fprintf(w, "| %s | %s |\n", "last_discovery", utcStamp(lastDiscovery()))
 	default:
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(data)
