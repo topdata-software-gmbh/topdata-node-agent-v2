@@ -26,6 +26,9 @@ type ShopSupervisor struct {
 
 	mu    sync.Mutex
 	shops map[string]shopHandle // keyed by shop name
+
+	lastDiscoveryMu sync.Mutex
+	lastDiscovery   time.Time
 }
 
 // NewShopSupervisor creates a supervisor over the given shops root.
@@ -45,8 +48,20 @@ func (s *ShopSupervisor) Count() int {
 	return len(s.shops)
 }
 
+// LastDiscovery returns the time of the most recent discovery/reconcile run.
+// It is the zero time if discovery has not run yet.
+func (s *ShopSupervisor) LastDiscovery() time.Time {
+	s.lastDiscoveryMu.Lock()
+	defer s.lastDiscoveryMu.Unlock()
+	return s.lastDiscovery
+}
+
 // reconcile discovers shops on disk and diffs them against the running set.
 func (s *ShopSupervisor) reconcile() {
+	s.lastDiscoveryMu.Lock()
+	s.lastDiscovery = time.Now()
+	s.lastDiscoveryMu.Unlock()
+
 	found, err := discovery.FindShops(s.root)
 	if err != nil {
 		log.Printf("discovery: %v (keeping current shops)", err)

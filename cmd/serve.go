@@ -29,6 +29,10 @@ var shopCount func() int = func() int { return 0 }
 // It is set by the serve command once the disk scanner exists.
 var lastScanTimes func() map[string]int64 = func() map[string]int64 { return map[string]int64{} }
 
+// lastDiscovery reports the time of the most recent discovery run. It is set by
+// the serve command once the shop supervisor exists.
+var lastDiscovery func() time.Time = func() time.Time { return time.Time{} }
+
 var serveCmd = &cobra.Command{
 	Use:   "serve",
 	Short: "Start the metrics exporter",
@@ -73,6 +77,7 @@ var serveCmd = &cobra.Command{
 		supervisor := monitor.NewShopSupervisor(viper.GetString("shops.root"), discoveryInterval, scanner)
 		shopCount = supervisor.Count
 		lastScanTimes = scanner.LastScanTimes
+		lastDiscovery = supervisor.LastDiscovery
 		go supervisor.Run()
 
 		log.Printf("listening on %s", viper.GetString("listen.address"))
@@ -106,6 +111,7 @@ func infoHandler(w http.ResponseWriter, r *http.Request) {
 		ShopsRoot     string           `json:"shops_root"`
 		ShopsTotal    int              `json:"shops_total"`
 		LastScan      map[string]int64 `json:"last_scan"`
+		LastDiscovery string           `json:"last_discovery"`
 	}{
 		Version:       version,
 		UptimeSeconds: time.Since(startTime).Seconds(),
@@ -115,6 +121,7 @@ func infoHandler(w http.ResponseWriter, r *http.Request) {
 		ShopsRoot:     agentInfo.ShopsRoot,
 		ShopsTotal:    shopCount(),
 		LastScan:      lastScanTimes(),
+		LastDiscovery: lastDiscovery().Format(time.RFC3339),
 	}
 
 	format := r.URL.Query().Get("format")
@@ -142,6 +149,7 @@ func infoHandler(w http.ResponseWriter, r *http.Request) {
 		for shop, ts := range data.LastScan {
 			fmt.Fprintf(w, "%-16s %s %s\n", "last_scan", shop, time.Unix(ts, 0).Format(time.RFC3339))
 		}
+		fmt.Fprintf(w, "%-16s %s\n", "last_discovery", data.LastDiscovery)
 	case "markdown":
 		w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
 		fmt.Fprintf(w, "| %s | %s |\n", "Field", "Value")
@@ -155,6 +163,7 @@ func infoHandler(w http.ResponseWriter, r *http.Request) {
 		for shop, ts := range data.LastScan {
 			fmt.Fprintf(w, "| %s | %s %s |\n", "last_scan", shop, time.Unix(ts, 0).Format(time.RFC3339))
 		}
+		fmt.Fprintf(w, "| %s | %s |\n", "last_discovery", data.LastDiscovery)
 	default:
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(data)
