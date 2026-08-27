@@ -117,12 +117,12 @@ func infoHandler(w http.ResponseWriter, r *http.Request) {
 		Version:       version,
 		UptimeSeconds: time.Since(startTime).Seconds(),
 		Uptime:        humanDuration(time.Since(startTime)),
-		StartedAt:     startTime.Format(time.RFC3339),
+		StartedAt:     startTime.UTC().Format(time.RFC3339),
 		ListenAddress: agentInfo.ListenAddress,
 		ShopsRoot:     agentInfo.ShopsRoot,
 		ShopsTotal:    shopCount(),
 		LastScan:      lastScanTimes(),
-		LastDiscovery: lastDiscovery().Format(time.RFC3339),
+		LastDiscovery: lastDiscovery().UTC().Format(time.RFC3339),
 	}
 
 	format := r.URL.Query().Get("format")
@@ -154,32 +154,38 @@ func infoHandler(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		fmt.Fprintf(w, "%-16s %s\n", "version", data.Version)
 		fmt.Fprintf(w, "%-16s %s\n", "uptime", data.Uptime)
-		fmt.Fprintf(w, "%-16s %s\n", "started_at", data.StartedAt)
+		fmt.Fprintf(w, "%-16s %s\n", "started_at", utcStamp(startTime))
 		fmt.Fprintf(w, "%-16s %s\n", "listen_address", data.ListenAddress)
 		fmt.Fprintf(w, "%-16s %s\n", "shops_root", data.ShopsRoot)
 		fmt.Fprintf(w, "%-16s %d\n", "shops_total", data.ShopsTotal)
 		for _, e := range scans {
-			fmt.Fprintf(w, "%-16s %s %s\n", "last_scan", e.shop, time.Unix(e.ts, 0).Format(time.RFC3339))
+			fmt.Fprintf(w, "%-16s %s %s\n", "last_scan", e.shop, utcStamp(time.Unix(e.ts, 0)))
 		}
-		fmt.Fprintf(w, "%-16s %s\n", "last_discovery", data.LastDiscovery)
+		fmt.Fprintf(w, "%-16s %s\n", "last_discovery", utcStamp(lastDiscovery()))
 	case "markdown":
 		w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
 		fmt.Fprintf(w, "| %s | %s |\n", "Field", "Value")
 		fmt.Fprintf(w, "| --- | --- |\n")
 		fmt.Fprintf(w, "| %s | %s |\n", "version", data.Version)
 		fmt.Fprintf(w, "| %s | %s |\n", "uptime", data.Uptime)
-		fmt.Fprintf(w, "| %s | %s |\n", "started_at", data.StartedAt)
+		fmt.Fprintf(w, "| %s | %s |\n", "started_at", utcStamp(startTime))
 		fmt.Fprintf(w, "| %s | %s |\n", "listen_address", data.ListenAddress)
 		fmt.Fprintf(w, "| %s | %s |\n", "shops_root", data.ShopsRoot)
 		fmt.Fprintf(w, "| %s | %d |\n", "shops_total", data.ShopsTotal)
 		for _, e := range scans {
-			fmt.Fprintf(w, "| %s | %s %s |\n", "last_scan", e.shop, time.Unix(e.ts, 0).Format(time.RFC3339))
+			fmt.Fprintf(w, "| %s | %s %s |\n", "last_scan", e.shop, utcStamp(time.Unix(e.ts, 0)))
 		}
-		fmt.Fprintf(w, "| %s | %s |\n", "last_discovery", data.LastDiscovery)
+		fmt.Fprintf(w, "| %s | %s |\n", "last_discovery", utcStamp(lastDiscovery()))
 	default:
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(data)
 	}
+}
+
+// utcStamp renders a timestamp as UTC in "2006-01-02 15:04:05" form: space as
+// the date-time separator and no zone suffix, for predictable cross-host output.
+func utcStamp(t time.Time) string {
+	return t.UTC().Format("2006-01-02 15:04:05")
 }
 
 func humanDuration(d time.Duration) string {
