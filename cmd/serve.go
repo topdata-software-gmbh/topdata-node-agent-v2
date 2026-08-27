@@ -158,8 +158,17 @@ func infoHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "%-16s %s\n", "listen_address", data.ListenAddress)
 		fmt.Fprintf(w, "%-16s %s\n", "shops_root", data.ShopsRoot)
 		fmt.Fprintf(w, "%-16s %d\n", "shops_total", data.ShopsTotal)
-		for _, e := range scans {
-			fmt.Fprintf(w, "%-16s %s %s\n", "last_scan", e.shop, utcStamp(time.Unix(e.ts, 0)))
+		if len(scans) > 0 {
+			shopW := 0
+			for _, e := range scans {
+				if len(e.shop) > shopW {
+					shopW = len(e.shop)
+				}
+			}
+			fmt.Fprintf(w, "%-16s %-*s %s\n", "last_scan", shopW, "shop", "scanned_at (UTC)")
+			for _, e := range scans {
+				fmt.Fprintf(w, "%-16s %-*s %s\n", "last_scan", shopW, e.shop, utcStamp(time.Unix(e.ts, 0)))
+			}
 		}
 		fmt.Fprintf(w, "%-16s %s\n", "last_discovery", utcStamp(lastDiscovery()))
 	case "markdown":
