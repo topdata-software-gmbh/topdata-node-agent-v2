@@ -25,6 +25,10 @@ var agentInfo = struct {
 // supervisor in Run so the live count is available to the /info handler.
 var shopCount func() int = func() int { return 0 }
 
+// lastScanTimes reports the most recent scan timestamp (unix seconds) per shop.
+// It is set by the serve command once the disk scanner exists.
+var lastScanTimes func() map[string]int64 = func() map[string]int64 { return map[string]int64{} }
+
 var serveCmd = &cobra.Command{
 	Use:   "serve",
 	Short: "Start the metrics exporter",
@@ -68,6 +72,7 @@ var serveCmd = &cobra.Command{
 		scanner := monitor.NewDiskScanner(scanInterval, scanConcurrency, excludeList, maxDepth, stateFile)
 		supervisor := monitor.NewShopSupervisor(viper.GetString("shops.root"), discoveryInterval, scanner)
 		shopCount = supervisor.Count
+		lastScanTimes = scanner.LastScanTimes
 		go supervisor.Run()
 
 		log.Printf("listening on %s", viper.GetString("listen.address"))
@@ -93,13 +98,14 @@ func healthzHandler(w http.ResponseWriter, r *http.Request) {
 // and finally JSON.
 func infoHandler(w http.ResponseWriter, r *http.Request) {
 	data := struct {
-		Version       string  `json:"version"`
-		UptimeSeconds float64 `json:"uptime_seconds"`
-		Uptime        string  `json:"uptime"`
-		StartedAt     string  `json:"started_at"`
-		ListenAddress string  `json:"listen_address"`
-		ShopsRoot     string  `json:"shops_root"`
-		ShopsTotal    int     `json:"shops_total"`
+		Version       string           `json:"version"`
+		UptimeSeconds float64          `json:"uptime_seconds"`
+		Uptime        string           `json:"uptime"`
+		StartedAt     string           `json:"started_at"`
+		ListenAddress string           `json:"listen_address"`
+		ShopsRoot     string           `json:"shops_root"`
+		ShopsTotal    int              `json:"shops_total"`
+		LastScan      map[string]int64 `json:"last_scan"`
 	}{
 		Version:       version,
 		UptimeSeconds: time.Since(startTime).Seconds(),
@@ -108,6 +114,7 @@ func infoHandler(w http.ResponseWriter, r *http.Request) {
 		ListenAddress: agentInfo.ListenAddress,
 		ShopsRoot:     agentInfo.ShopsRoot,
 		ShopsTotal:    shopCount(),
+		LastScan:      lastScanTimes(),
 	}
 
 	format := r.URL.Query().Get("format")
@@ -132,6 +139,9 @@ func infoHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "%-16s %s\n", "listen_address", data.ListenAddress)
 		fmt.Fprintf(w, "%-16s %s\n", "shops_root", data.ShopsRoot)
 		fmt.Fprintf(w, "%-16s %d\n", "shops_total", data.ShopsTotal)
+		for shop, ts := range data.LastScan {
+			fmt.Fprintf(w, "%-16s %s %s\n", "last_scan", shop, time.Unix(ts, 0).Format(time.RFC3339))
+		}
 	case "markdown":
 		w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
 		fmt.Fprintf(w, "| %s | %s |\n", "Field", "Value")
@@ -142,6 +152,9 @@ func infoHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "| %s | %s |\n", "listen_address", data.ListenAddress)
 		fmt.Fprintf(w, "| %s | %s |\n", "shops_root", data.ShopsRoot)
 		fmt.Fprintf(w, "| %s | %d |\n", "shops_total", data.ShopsTotal)
+		for shop, ts := range data.LastScan {
+			fmt.Fprintf(w, "| %s | %s %s |\n", "last_scan", shop, time.Unix(ts, 0).Format(time.RFC3339))
+		}
 	default:
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(data)

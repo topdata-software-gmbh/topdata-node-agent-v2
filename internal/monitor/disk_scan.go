@@ -313,6 +313,26 @@ func (d *DiskScanner) StartShop(ctx context.Context, shop discovery.Shop) {
 	}()
 }
 
+// LastScanTimes returns, for each tracked shop, the unix timestamp (seconds) of
+// the most recent directory scan. A shop that has never been scanned is absent.
+func (d *DiskScanner) LastScanTimes() map[string]int64 {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	out := map[string]int64{}
+	for shop, shopState := range d.state {
+		var latest int64
+		for _, ds := range shopState {
+			if ds.ScanTime > latest {
+				latest = ds.ScanTime
+			}
+		}
+		if latest > 0 {
+			out[shop] = latest
+		}
+	}
+	return out
+}
+
 // RemoveShop stops tracking a shop: it deletes the disk-usage series and the
 // shop's per-directory growth state so /metrics and /disk-eaters no longer
 // report it.
