@@ -146,7 +146,7 @@ import (
 
 var (
 	criticalErrors = promauto.NewCounterVec(prometheus.CounterOpts{
-		Name: "shopware_critical_errors_total",
+		Name: "topdata_agent_shopware_critical_errors_total",
 		Help: "Total number of critical errors in Shopware logs",
 	}, []string{"shop"})
 )
@@ -196,7 +196,7 @@ import (
 
 var (
 	diskUsage = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "shopware_shop_disk_usage_bytes",
+		Name: "topdata_agent_shopware_shop_disk_usage_bytes",
 		Help: "Disk usage of the shop directory in bytes",
 	}, []string{"shop"})
 )

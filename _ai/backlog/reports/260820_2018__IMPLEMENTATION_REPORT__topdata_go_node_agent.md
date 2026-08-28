@@ -30,8 +30,8 @@ Execute the implementation plan `_ai/backlog/active/240523_1400__IMPLEMENTATION_
 - `cmd/root.go` — Cobra root command `topdata-agent`
 - `cmd/serve.go` — `serve` subcommand, env-based config, Basic Auth middleware, metrics server on `:9144`
 - `internal/discovery/discovery.go` — scans `prod-shops/` for shops with `var/log`
-- `internal/monitor/log_monitor.go` — tailing of daily Shopware logs + `shopware_critical_errors_total`
-- `internal/monitor/host_monitor.go` — `du -sb` disk usage → `shopware_shop_disk_usage_bytes`
+- `internal/monitor/log_monitor.go` — tailing of daily Shopware logs + `topdata_agent_shopware_critical_errors_total`
+- `internal/monitor/host_monitor.go` — `du -sb` disk usage → `topdata_agent_shopware_shop_disk_usage_bytes`
 
 **Modified:**
 - `.gitignore` — added `/bin/`, `*.env`, `dist/`
@@ -65,8 +65,8 @@ Execute the implementation plan `_ai/backlog/active/240523_1400__IMPLEMENTATION_
 Validation performed with Go 1.26.5: `go build ./...`, `go vet ./...` clean. Live smoke test on `:19144` with a synthetic shop:
 
 - no auth / wrong auth → `401`; correct auth → Prometheus exposition.
-- pre-existing CRITICAL line counted (`shopware_critical_errors_total{shop="demo-shop"} 1`); appending a new line to the live log incremented it to `2` (real-time tailing works).
-- `shopware_shop_disk_usage_bytes{shop="demo-shop"} 87` matches `du -sb`.
+- pre-existing CRITICAL line counted (`topdata_agent_shopware_critical_errors_total{shop="demo-shop"} 1`); appending a new line to the live log incremented it to `2` (real-time tailing works).
+- `topdata_agent_shopware_shop_disk_usage_bytes{shop="demo-shop"} 87` matches `du -sb`.
 
 ## Usage Examples
 

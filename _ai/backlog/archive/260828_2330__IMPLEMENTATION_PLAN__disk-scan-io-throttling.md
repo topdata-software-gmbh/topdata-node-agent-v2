@@ -598,7 +598,7 @@ the new keys. Two concrete corrections required:
 
 - The table currently says `TOPDATA_AGENT_SHOPS_ROOT` default `/srv/topdata-shops`
   — the real default is `/srv/topdata-shops/prod-shops` (changed in v1.0.1).
-- The `shopware_shop_disk_usage_bytes` row says "measured with `du -sb` and
+- The `topdata_agent_shopware_shop_disk_usage_bytes` row says "measured with `du -sb` and
   refreshed hourly" — it is actually a pure-Go recursive walk refreshed on the
   `disk.scan_interval` (default 6h).
 
@@ -618,7 +618,7 @@ append these rows to the env-var table:
 | `TOPDATA_AGENT_DISK_SCAN_DEFER_ON_STATE` | `true` | Skip the immediate startup scan when persisted state exists (prevents restart I/O bursts). |
 ```
 
-And update the `shopware_shop_disk_usage_bytes` description row to:
+And update the `topdata_agent_shopware_shop_disk_usage_bytes` description row to:
 "Disk usage of the shop directory in bytes, measured by a pure-Go recursive walk
 (refreshed every `disk.scan_interval`, default 6h; excludes `var/cache`)."
 

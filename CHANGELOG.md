@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - `shops.root` now points directly at the directory containing shop folders (no `prod-shops` suffix appended anymore). Default and deploy configs updated to `/srv/topdata-shops/prod-shops`; the real `deploy/vars/vault.yml` must be updated accordingly.
 - Removed the hardcoded default Basic Auth credentials (`admin`/`fete`). `TOPDATA_AGENT_AUTH_USERNAME` and `TOPDATA_AGENT_AUTH_PASSWORD` are now required: `serve` exits with an error at startup if they are not set.
-- Replaced the per-shop hourly `du -sb` goroutine (which fired 18 concurrent `du` processes on the hour and saturated disk I/O) with a single `DiskScanner`: a pure-Go `WalkDir` per shop, throttled by a concurrency semaphore (default 1) and de-synchronized via a per-shop phase offset. This bounds disk pressure regardless of shop count. The `shopware_shop_disk_usage_bytes` gauge now excludes configured directories (default `var/cache`).
+- Replaced the per-shop hourly `du -sb` goroutine (which fired 18 concurrent `du` processes on the hour and saturated disk I/O) with a single `DiskScanner`: a pure-Go `WalkDir` per shop, throttled by a concurrency semaphore (default 1) and de-synchronized via a per-shop phase offset. This bounds disk pressure regardless of shop count. The `topdata_agent_shopware_shop_disk_usage_bytes` gauge now excludes configured directories (default `var/cache`).
 
 ### Added
 - Unauthenticated `/healthz` liveness endpoint: returns `200 OK` with body `OK` whenever the process is listening (no Basic Auth). Used by the Ansible deploy smoke test instead of the auth-gated `/metrics`.
@@ -26,8 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial release of the Go Node Agent.
 - Migration of log monitoring and disk usage tracking from the PHP-based `node-agent`.
 - Auto-discovery of active Shopware 6 shops in `/srv/topdata-shops/prod-shops/`.
-- Real-time tailing of Shopware logs counting critical errors (`shopware_critical_errors_total`).
-- Disk usage tracking per shop (`shopware_shop_disk_usage_bytes`).
+- Real-time tailing of Shopware logs counting critical errors (`topdata_agent_shopware_critical_errors_total`).
+- Disk usage tracking per shop (`topdata_agent_shopware_shop_disk_usage_bytes`).
 - Prometheus-compatible `/metrics` endpoint secured with Basic Auth, configurable via environment variables.
 - Cobra-based CLI with a single `serve` command.
 ## [Unreleased]

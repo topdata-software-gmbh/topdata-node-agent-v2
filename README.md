@@ -48,13 +48,16 @@ with the following defaults:
 ## Metrics
 
 The agent registers the following metrics (via `prometheus/client_golang`, on the
-global default registry). All metrics carry a `shop` label holding the shop's
-directory name under `shops.root`.
+global default registry). All metrics except `topdata_agent_shops_total` carry a
+`shop` label holding the shop's directory name under `shops.root`.
 
 | Metric | Type | Labels | Description |
 |---|---|---|---|
-| `shopware_critical_errors_total` | Counter | `shop` | Total number of critical errors found in the shop's `vol/www/var/log/prod-YYYY-MM-DD.log`. A line counts when it matches `.CRITICAL:` or `[critical]` (case-insensitive). Monotonic — it only increases for the lifetime of the process. |
-| `shopware_shop_disk_usage_bytes` | Gauge | `shop` | Disk usage of the shop directory in bytes, measured by a pure-Go recursive walk (refreshed every `disk.scan_interval`, default 6h; excludes `var/cache`). |
+| `topdata_agent_shopware_critical_errors_total` | Counter | `shop` | Total number of critical errors found in the shop's `vol/www/var/log/prod-YYYY-MM-DD.log`. A line counts when it matches `.CRITICAL:` or `[critical]` (case-insensitive). Monotonic — it only increases for the lifetime of the process. |
+| `topdata_agent_shopware_shop_disk_usage_bytes` | Gauge | `shop` | Disk usage of the shop directory in bytes, measured by a pure-Go recursive walk (refreshed every `disk.scan_interval`, default 6h; excludes `var/cache`). |
+| `topdata_agent_shops_total` | Gauge | — | Total number of Shopware shops currently monitored by the agent. |
+| `topdata_agent_disk_scan_last_duration_seconds` | Gauge | `shop` | Duration of the most recent disk scan for a shop, in seconds. |
+| `topdata_agent_disk_scan_total` | Counter | `shop` | Total number of disk scans performed per shop. |
 
 > The `shop` label value is the directory name discovered under `shops.root`
 > (e.g. `muster-shop`), not the full path.

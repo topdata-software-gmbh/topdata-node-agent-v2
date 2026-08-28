@@ -62,7 +62,7 @@ convenience script). All plan steps completed.
   existence check, and both templates render correctly.
 - End-to-end local test: built both binaries; ran the amd64 binary with the
   rendered env file against a synthetic shop tree — `/metrics` returned 200
-  with Basic Auth and exposed `shopware_shop_disk_usage_bytes{shop="demo1"}`.
+  with Basic Auth and exposed `topdata_agent_shopware_shop_disk_usage_bytes{shop="demo1"}`.
 - `go vet ./...` clean.
 
 ## Not done (requires production access)

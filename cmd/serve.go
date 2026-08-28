@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -33,6 +34,15 @@ var lastScanTimes func() map[string]int64 = func() map[string]int64 { return map
 // lastDiscovery reports the time of the most recent discovery run. It is set by
 // the serve command once the shop supervisor exists.
 var lastDiscovery func() time.Time = func() time.Time { return time.Time{} }
+
+// route describes an HTTP endpoint the agent serves. It is the single source of
+// truth for both registration (http.Handle) and the startup exports dump, so the
+// two can never drift apart.
+type route struct {
+	path    string
+	auth    bool
+	handler http.Handler
+}
 
 var serveCmd = &cobra.Command{
 	Use:   "serve",
@@ -98,12 +108,24 @@ var serveCmd = &cobra.Command{
 
 		printConfig()
 
+		routes := []route{
+			{path: "/healthz", auth: false, handler: http.HandlerFunc(healthzHandler)},
+			{path: "/metrics", auth: true, handler: promhttp.Handler()},
+			{path: "/disk-eaters", auth: true, handler: scanner.Handler()},
+			{path: "/info", auth: true, handler: http.HandlerFunc(infoHandler)},
+			{path: "/critical-errors", auth: true, handler: monitor.CriticalErrorsHandler(startTime)},
+		}
+		for _, r := range routes {
+			if r.auth {
+				http.Handle(r.path, authMiddleware(r.handler))
+			} else {
+				http.Handle(r.path, r.handler)
+			}
+		}
+
+		printExports(routes)
+
 		log.Printf("listening on %s", viper.GetString("listen.address"))
-		http.HandleFunc("/healthz", healthzHandler)
-		http.Handle("/metrics", authMiddleware(promhttp.Handler()))
-		http.Handle("/disk-eaters", authMiddleware(scanner.Handler()))
-		http.Handle("/info", authMiddleware(http.HandlerFunc(infoHandler)))
-		http.Handle("/critical-errors", authMiddleware(monitor.CriticalErrorsHandler(startTime)))
 		log.Fatal(http.ListenAndServe(viper.GetString("listen.address"), nil))
 	},
 }
@@ -254,6 +276,49 @@ func printConfig() {
 	for _, r := range rows {
 		log.Printf("  %-*s = %s", keyW, r.key, r.value)
 	}
+}
+
+// printExports logs everything the agent exposes at startup: the application
+// metrics registered on the global registry (the Go/process/promhttp runtime
+// collectors are omitted) and the HTTP endpoints. Enumerating the registry at
+// runtime means the dump always reflects the actual built binary, regardless of
+// metric-name prefix or later renames.
+func printExports(routes []route) {
+	mfs, err := prometheus.DefaultGatherer.Gather()
+	if err != nil {
+		log.Printf("exported metrics: could not gather registry: %v", err)
+	} else {
+		log.Printf("exported metrics:")
+		count := 0
+		for _, mf := range mfs {
+			if isRuntimeMetric(mf.GetName()) {
+				continue
+			}
+			count++
+			log.Printf("  %s [%s] — %s", mf.GetName(), strings.ToLower(mf.GetType().String()), mf.GetHelp())
+		}
+		if count == 0 {
+			log.Printf("  (no application metrics registered)")
+		}
+	}
+
+	log.Printf("http endpoints:")
+	for _, r := range routes {
+		auth := "no"
+		if r.auth {
+			auth = "yes"
+		}
+		log.Printf("  %-16s auth=%s", r.path, auth)
+	}
+}
+
+// isRuntimeMetric reports whether a metric name belongs to the collectors
+// prometheus/client_golang registers automatically (Go runtime, process, and the
+// promhttp handler), which are not part of the agent's own exports.
+func isRuntimeMetric(name string) bool {
+	return strings.HasPrefix(name, "go_") ||
+		strings.HasPrefix(name, "process_") ||
+		strings.HasPrefix(name, "promhttp_")
 }
 
 func humanDuration(d time.Duration) string {

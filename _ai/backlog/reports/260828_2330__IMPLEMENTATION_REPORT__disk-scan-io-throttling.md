@@ -49,7 +49,7 @@ operator-ergonomics bonus so effective settings are visible at a glance.
 - `CHANGELOG.md` (modified) — collapsed the four duplicate `## [Unreleased]`
   headers into one and added the Changed/Added entries.
 - `README.md` (modified) — corrected the `SHOPS_ROOT` default and the
-  `shopware_shop_disk_usage_bytes` description, added the disk config rows, and
+  `topdata_agent_shopware_shop_disk_usage_bytes` description, added the disk config rows, and
   updated the systemd example with the I/O guards.
 
 ## Key Changes
@@ -121,7 +121,7 @@ promtool query instant :9144 \
 - `CHANGELOG.md`: collapsed duplicate Unreleased headers; documented the Changed
   and Added entries including the config table.
 - `README.md`: corrected `SHOPS_ROOT` default to `/srv/topdata-shops/prod-shops`,
-  fixed the `shopware_shop_disk_usage_bytes` description (pure-Go walk, 6h,
+  fixed the `topdata_agent_shopware_shop_disk_usage_bytes` description (pure-Go walk, 6h,
   excludes `var/cache`), added all `TOPDATA_AGENT_DISK_*` rows, and added the
   `IOSchedulingClass=idle` / `IOWeight=10` guards to the systemd example.
 
