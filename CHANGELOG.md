@@ -32,6 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cobra-based CLI with a single `serve` command.
 ## [Unreleased]
 
+## [Unreleased]
+
 ### Changed
 - The disk scanner no longer triggers a full recursive walk of every shop at
   process startup on restarts: when persisted scan state already exists for a
