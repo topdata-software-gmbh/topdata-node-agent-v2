@@ -1,0 +1,15 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "prometheus-access": {
+      "type": "local",
+      "command": ["uv", "--directory", "/home/marc/devel/unified-mcp-servers", "run", "mcp-prometheus-access"],
+      "enabled": true,
+      "environment": {
+        "PROMETHEUS_URL": "{env:PROMETHEUS_URL}",
+        "PROMETHEUS_USER": "{env:PROMETHEUS_USER}",
+        "PROMETHEUS_PASS": "{env:PROMETHEUS_PASS}"
+      }
+    }
+  }
+}

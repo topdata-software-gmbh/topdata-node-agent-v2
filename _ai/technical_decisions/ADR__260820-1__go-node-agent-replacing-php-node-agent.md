@@ -4,7 +4,7 @@ status: Accepted
 date: 2026-08-20
 deciders: Topdata Team
 tags: [golang, monitoring, prometheus, shopware, migration]
-sha256: 7cc2ee7da5f79e0ebec3f055a7976709e6712f9a0d14f84b6973c59f2e480bba
+sha256: 68f833d88e5e0c795c9f27f7f89ade87d50a7858ff5d24588e6ca8ea2ddfb797
 id: 5f462a38-1379-40d9-9662-a7723349fe43
 ---
 
