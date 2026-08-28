@@ -26,11 +26,20 @@ with the following defaults:
 
 | Env var | Default | Description |
 |---|---|---|
-| `TOPDATA_AGENT_SHOPS_ROOT` | `/srv/topdata-shops` | Root directory containing `prod-shops/` |
+| `TOPDATA_AGENT_SHOPS_ROOT` | `/srv/topdata-shops/prod-shops` | Root directory containing the shop folders |
 | `TOPDATA_AGENT_AUTH_USERNAME` | *(required)* | Basic Auth username for `/metrics` |
 | `TOPDATA_AGENT_AUTH_PASSWORD` | *(required)* | Basic Auth password for `/metrics` |
 | `TOPDATA_AGENT_LISTEN_ADDRESS` | `:9144` | Listen address of the metrics endpoint |
 | `TOPDATA_AGENT_DISCOVERY_INTERVAL` | `15m` | How often the agent re-scans `shops.root` for added/removed shops. Shops added later are monitored automatically; removed shops are stopped and their metric series deleted — no service restart required. |
+| `TOPDATA_AGENT_DISK_SCAN_INTERVAL` | `6h` | How often each shop's directory tree is walked to refresh disk usage / growth. |
+| `TOPDATA_AGENT_DISK_SCAN_CONCURRENCY` | `1` | Max simultaneous shop walks (semaphore). Keep at 1 on slow storage. |
+| `TOPDATA_AGENT_DISK_EXCLUDE` | `var/cache` | Comma-separated relative paths skipped from size + growth. |
+| `TOPDATA_AGENT_DISK_GROWTH_MAX_DEPTH` | `3` | Depth at which per-directory growth is tracked. |
+| `TOPDATA_AGENT_DISK_STATE_FILE` | `/var/lib/topdata-agent/disk-state.json` | Persists per-dir sizes + scan times for cross-restart growth. |
+| `TOPDATA_AGENT_DISK_SCAN_YIELD_EVERY` | `0` | Directories walked between scheduler yields (0 = off). Set e.g. `200` on slow storage. |
+| `TOPDATA_AGENT_DISK_SCAN_YIELD_SLEEP` | `0` | Sleep applied on each yield (e.g. `1ms`); caps walk I/O. Default off. |
+| `TOPDATA_AGENT_DISK_STATE_SAVE_INTERVAL` | `30s` | Minimum interval between state-file rewrites. |
+| `TOPDATA_AGENT_DISK_SCAN_DEFER_ON_STATE` | `true` | Skip the immediate startup scan when persisted state exists (prevents restart I/O bursts). |
 
 > `TOPDATA_AGENT_AUTH_USERNAME` and `TOPDATA_AGENT_AUTH_PASSWORD` are required —
 > the agent refuses to start without them. Set them via the systemd
@@ -45,7 +54,7 @@ directory name under `shops.root`.
 | Metric | Type | Labels | Description |
 |---|---|---|---|
 | `shopware_critical_errors_total` | Counter | `shop` | Total number of critical errors found in the shop's `vol/www/var/log/prod-YYYY-MM-DD.log`. A line counts when it matches `.CRITICAL:` or `[critical]` (case-insensitive). Monotonic — it only increases for the lifetime of the process. |
-| `shopware_shop_disk_usage_bytes` | Gauge | `shop` | Disk usage of the shop directory in bytes, measured with `du -sb` and refreshed hourly. Drops to the last value at rest; 0 if `du` is missing or fails. |
+| `shopware_shop_disk_usage_bytes` | Gauge | `shop` | Disk usage of the shop directory in bytes, measured by a pure-Go recursive walk (refreshed every `disk.scan_interval`, default 6h; excludes `var/cache`). |
 
 > The `shop` label value is the directory name discovered under `shops.root`
 > (e.g. `muster-shop`), not the full path.
@@ -159,6 +168,12 @@ User=root
 EnvironmentFile=/etc/topdata-agent.env
 ExecStart=/usr/local/bin/topdata-agent serve
 Restart=on-failure
+RestartSec=5
+# Bound the agent's disk I/O so a full directory walk can never saturate the
+# host's storage. The agent only consumes disk bandwidth that no other process
+# wants. Rendered by the deploy template; keep in sync with it.
+IOSchedulingClass=idle
+IOWeight=10
 
 [Install]
 WantedBy=multi-user.target

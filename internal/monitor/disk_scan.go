@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -25,6 +26,16 @@ var diskUsage = promauto.NewGaugeVec(prometheus.GaugeOpts{
 	Help: "Disk usage of the shop directory in bytes (excluding configured dirs)",
 }, []string{"shop"})
 
+var scanDuration = promauto.NewGaugeVec(prometheus.GaugeOpts{
+	Name: "topdata_agent_disk_scan_last_duration_seconds",
+	Help: "Duration of the most recent disk scan for a shop, in seconds.",
+}, []string{"shop"})
+
+var scanTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+	Name: "topdata_agent_disk_scan_total",
+	Help: "Total number of disk scans performed per shop.",
+}, []string{"shop"})
+
 type dirState struct {
 	Size     int64 `json:"size"`
 	ScanTime int64 `json:"scan_time"` // unix seconds of the scan that produced Size
@@ -39,6 +50,22 @@ type Grower struct {
 	LastScanAgeSeconds float64 `json:"last_scan_age_seconds"`
 }
 
+// ScanOptions configures the I/O footprint of the DiskScanner. All fields are
+// safe to leave at zero value except where a default is applied by the caller.
+type ScanOptions struct {
+	// YieldEvery is the number of directories walked between scheduler yields.
+	// 0 disables yielding.
+	YieldEvery int
+	// YieldSleep is the duration slept on each yield. 0 disables the sleep.
+	YieldSleep time.Duration
+	// StateSaveInterval is the minimum interval between state-file writes.
+	// 0 writes on every scan (legacy behavior).
+	StateSaveInterval time.Duration
+	// DeferFirstOnState skips the immediate startup scan when persisted state
+	// already exists for a shop, so restarts do not trigger a full walk burst.
+	DeferFirstOnState bool
+}
+
 // DiskScanner periodically walks each shop, updates the disk-usage gauge and
 // maintains a per-directory growth index served by /disk-eaters.
 type DiskScanner struct {
@@ -48,14 +75,22 @@ type DiskScanner struct {
 	maxDepth    int
 	stateFile   string
 
+	yieldEvery   int
+	yieldSleep   time.Duration
+	saveInterval time.Duration
+	deferFirst   bool
+
 	sem chan struct{}
 
 	mu      sync.Mutex
 	state   map[string]map[string]dirState
 	growers map[string][]Grower
+
+	saveMu    sync.Mutex
+	saveTimer *time.Timer
 }
 
-func NewDiskScanner(interval time.Duration, concurrency int, excludes []string, maxDepth int, stateFile string) *DiskScanner {
+func NewDiskScanner(interval time.Duration, concurrency int, excludes []string, maxDepth int, stateFile string, opts ScanOptions) *DiskScanner {
 	d := &DiskScanner{
 		interval:    interval,
 		concurrency: concurrency,
@@ -65,6 +100,10 @@ func NewDiskScanner(interval time.Duration, concurrency int, excludes []string, 
 		sem:         make(chan struct{}, maxDepthOrOne(concurrency)),
 		state:       map[string]map[string]dirState{},
 		growers:     map[string][]Grower{},
+		yieldEvery:  opts.YieldEvery,
+		yieldSleep:  opts.YieldSleep,
+		saveInterval: opts.StateSaveInterval,
+		deferFirst:  opts.DeferFirstOnState,
 	}
 	d.loadState()
 	return d
@@ -82,7 +121,33 @@ func (d *DiskScanner) loadState() {
 	if err != nil {
 		return
 	}
-	_ = json.Unmarshal(data, &d.state)
+	if err := json.Unmarshal(data, &d.state); err != nil {
+		return
+	}
+	// Rehydrate the disk-usage gauge and the /disk-eaters ranking from persisted
+	// sizes so a deferred restart does not leave metrics blank for up to one
+	// scan interval. Growth-per-hour needs two scans and therefore repopulates
+	// on the next walk (left at 0 here).
+	now := time.Now()
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	for shop, shopState := range d.state {
+		var list []Grower
+		for rel, ds := range shopState {
+			if rel == "" {
+				diskUsage.WithLabelValues(shop).Set(float64(ds.Size))
+				continue
+			}
+			list = append(list, Grower{
+				Shop:               shop,
+				Path:               rel,
+				SizeBytes:          ds.Size,
+				GrowthBytesPerHour: 0,
+				LastScanAgeSeconds: now.Sub(time.Unix(ds.ScanTime, 0)).Seconds(),
+			})
+		}
+		d.growers[shop] = list
+	}
 }
 
 func (d *DiskScanner) saveState() {
@@ -101,6 +166,33 @@ func (d *DiskScanner) saveState() {
 	}
 }
 
+// hasState reports whether persisted scan state exists for a shop. It is used to
+// decide whether the immediate startup scan can be skipped on a restart.
+func (d *DiskScanner) hasState(shop string) bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	_, ok := d.state[shop]
+	return ok
+}
+
+func (d *DiskScanner) scheduleSave() {
+	if d.saveInterval <= 0 {
+		d.saveState()
+		return
+	}
+	d.saveMu.Lock()
+	defer d.saveMu.Unlock()
+	if d.saveTimer != nil {
+		return // a write is already scheduled
+	}
+	d.saveTimer = time.AfterFunc(d.saveInterval, func() {
+		d.saveMu.Lock()
+		d.saveTimer = nil
+		d.saveMu.Unlock()
+		d.saveState()
+	})
+}
+
 func (d *DiskScanner) isExcluded(rel string) bool {
 	for _, ex := range d.excludes {
 		ex = strings.Trim(ex, "/")
@@ -114,12 +206,28 @@ func (d *DiskScanner) isExcluded(rel string) bool {
 	return false
 }
 
+// maybeYield yields to the scheduler and optionally sleeps after every
+// yieldEvery directories walked, so a full recursive scan cannot monopolize
+// disk I/O on slow storage.
+func (d *DiskScanner) maybeYield(n int) {
+	if d.yieldEvery <= 0 || n%d.yieldEvery != 0 {
+		return
+	}
+	runtime.Gosched()
+	if d.yieldSleep > 0 {
+		time.Sleep(d.yieldSleep)
+	}
+}
+
 func (d *DiskScanner) scanShop(shop discovery.Shop) {
 	now := time.Now()
 	sizes := map[string]int64{}
 
+	var n int
 	var walk func(abs, rel string, depth int) int64
 	walk = func(abs, rel string, depth int) int64 {
+		n++
+		d.maybeYield(n)
 		var sz int64
 		ents, err := os.ReadDir(abs)
 		if err != nil {
@@ -150,7 +258,10 @@ func (d *DiskScanner) scanShop(shop discovery.Shop) {
 		return sz
 	}
 
+	start := time.Now()
 	total := walk(shop.Path, "", 0)
+	scanDuration.WithLabelValues(shop.Name).Set(time.Since(start).Seconds())
+	scanTotal.WithLabelValues(shop.Name).Inc()
 	sizes[""] = total
 	diskUsage.WithLabelValues(shop.Name).Set(float64(total))
 	d.recordGrowth(shop.Name, sizes, now)
@@ -192,7 +303,7 @@ func (d *DiskScanner) recordGrowth(shop string, sizes map[string]int64, now time
 	d.growers[shop] = list
 	d.mu.Unlock()
 
-	d.saveState()
+	d.scheduleSave()
 }
 
 // subtractChildren rewrites each directory's size and growth to exclude its
@@ -281,22 +392,37 @@ func (d *DiskScanner) TopGrowers(shop string, top int, by string) []Grower {
 }
 
 // StartShop runs the periodic disk scan for a single shop until ctx is
-// cancelled. The first scan runs promptly (serialized through the semaphore),
-// then the shop settles into its own fixed random phase so scans stay
-// permanently desynchronized and never realign into a spike.
+// cancelled. On a first-ever run (no persisted state for the shop) the first
+// scan runs promptly with a small boot spread so metrics populate quickly. On
+// subsequent agent restarts the first scan is deferred to the shop's own
+// randomized phase, so restarting the agent no longer triggers a synchronized
+// full-tree walk of every shop at once (which previously caused disk-I/O
+// storms on slow storage).
 func (d *DiskScanner) StartShop(ctx context.Context, shop discovery.Shop) {
 	go func() {
+		if d.deferFirst && d.hasState(shop.Name) {
+			offset := time.Duration(rand.Int63n(int64(d.interval)))
+			timer := time.NewTimer(d.interval + offset)
+			defer timer.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-timer.C:
+					d.runScan(ctx, shop)
+					timer.Reset(d.interval + offset)
+				}
+			}
+		}
+
 		select {
-		case <-time.After(time.Duration(rand.Int63n(int64(30 * time.Second)))): // small boot spread
+		case <-time.After(time.Duration(rand.Int63n(int64(30 * time.Second)))):
 		case <-ctx.Done():
 			return
 		}
+		d.runScan(ctx, shop)
 
-		d.sem <- struct{}{}
-		d.scanShop(shop)
-		<-d.sem
-
-		offset := time.Duration(rand.Int63n(int64(d.interval))) // fixed phase for this shop
+		offset := time.Duration(rand.Int63n(int64(d.interval)))
 		timer := time.NewTimer(d.interval + offset)
 		defer timer.Stop()
 		for {
@@ -304,13 +430,23 @@ func (d *DiskScanner) StartShop(ctx context.Context, shop discovery.Shop) {
 			case <-ctx.Done():
 				return
 			case <-timer.C:
-				d.sem <- struct{}{}
-				d.scanShop(shop)
-				<-d.sem
+				d.runScan(ctx, shop)
 				timer.Reset(d.interval + offset)
 			}
 		}
 	}()
+}
+
+// runScan performs one scan of the shop, respecting the concurrency semaphore
+// and the context.
+func (d *DiskScanner) runScan(ctx context.Context, shop discovery.Shop) {
+	select {
+	case <-ctx.Done():
+		return
+	case d.sem <- struct{}{}:
+		defer func() { <-d.sem }()
+		d.scanShop(shop)
+	}
 }
 
 // LastScanTimes returns, for each tracked shop, the unix timestamp (seconds) of

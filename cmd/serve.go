@@ -74,12 +74,29 @@ var serveCmd = &cobra.Command{
 			stateFile = "/var/lib/topdata-agent/disk-state.json"
 		}
 
-		scanner := monitor.NewDiskScanner(scanInterval, scanConcurrency, excludeList, maxDepth, stateFile)
+		yieldEvery := viper.GetInt("disk.scan_yield_every")
+		yieldSleep := viper.GetDuration("disk.scan_yield_sleep")
+		stateSaveInterval := viper.GetDuration("disk.state_save_interval")
+		if stateSaveInterval <= 0 {
+			stateSaveInterval = 30 * time.Second
+		}
+		deferFirst := viper.GetBool("disk.scan_defer_on_state")
+
+		opts := monitor.ScanOptions{
+			YieldEvery:        yieldEvery,
+			YieldSleep:        yieldSleep,
+			StateSaveInterval: stateSaveInterval,
+			DeferFirstOnState: deferFirst,
+		}
+
+		scanner := monitor.NewDiskScanner(scanInterval, scanConcurrency, excludeList, maxDepth, stateFile, opts)
 		supervisor := monitor.NewShopSupervisor(viper.GetString("shops.root"), discoveryInterval, scanner)
 		shopCount = supervisor.Count
 		lastScanTimes = scanner.LastScanTimes
 		lastDiscovery = supervisor.LastDiscovery
 		go supervisor.Run()
+
+		printConfig()
 
 		log.Printf("listening on %s", viper.GetString("listen.address"))
 		http.HandleFunc("/healthz", healthzHandler)
@@ -197,6 +214,48 @@ func utcStamp(t time.Time) string {
 	return t.UTC().Format("2006-01-02 15:04:05")
 }
 
+// printConfig logs the resolved agent configuration as a table. Sensitive
+// values (auth password) are redacted so they never appear in logs.
+func printConfig() {
+	type row struct {
+		key   string
+		value string
+	}
+	rows := []row{
+		{"shops.root", viper.GetString("shops.root")},
+		{"listen.address", viper.GetString("listen.address")},
+		{"discovery.interval", viper.GetDuration("discovery.interval").String()},
+		{"disk.scan_interval", viper.GetDuration("disk.scan_interval").String()},
+		{"disk.scan_concurrency", fmt.Sprintf("%d", viper.GetInt("disk.scan_concurrency"))},
+		{"disk.exclude", strings.Join(viper.GetStringSlice("disk.exclude"), ",")},
+		{"disk.growth_max_depth", fmt.Sprintf("%d", viper.GetInt("disk.growth_max_depth"))},
+		{"disk.state_file", viper.GetString("disk.state_file")},
+		{"disk.scan_yield_every", fmt.Sprintf("%d", viper.GetInt("disk.scan_yield_every"))},
+		{"disk.scan_yield_sleep", viper.GetDuration("disk.scan_yield_sleep").String()},
+		{"disk.state_save_interval", viper.GetDuration("disk.state_save_interval").String()},
+		{"disk.scan_defer_on_state", fmt.Sprintf("%t", viper.GetBool("disk.scan_defer_on_state"))},
+		{"auth.username", viper.GetString("auth.username")},
+	}
+	pw := viper.GetString("auth.password")
+	if pw != "" {
+		pw = "*** (redacted)"
+	} else {
+		pw = "(unset)"
+	}
+	rows = append(rows, row{"auth.password", pw})
+
+	keyW := 0
+	for _, r := range rows {
+		if len(r.key) > keyW {
+			keyW = len(r.key)
+		}
+	}
+	log.Printf("agent configuration:")
+	for _, r := range rows {
+		log.Printf("  %-*s = %s", keyW, r.key, r.value)
+	}
+}
+
 func humanDuration(d time.Duration) string {
 	if d < time.Second {
 		return "0s"
@@ -242,6 +301,10 @@ func init() {
 	viper.SetDefault("disk.exclude", []string{"var/cache"})
 	viper.SetDefault("disk.growth_max_depth", 3)
 	viper.SetDefault("disk.state_file", "/var/lib/topdata-agent/disk-state.json")
+	viper.SetDefault("disk.scan_yield_every", 0)
+	viper.SetDefault("disk.scan_yield_sleep", 0)
+	viper.SetDefault("disk.state_save_interval", 30*time.Second)
+	viper.SetDefault("disk.scan_defer_on_state", true)
 	viper.SetDefault("discovery.interval", 15*time.Minute)
 	viper.SetEnvPrefix("TOPDATA_AGENT")
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))

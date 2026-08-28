@@ -8,6 +8,11 @@ EnvironmentFile=/etc/topdata-agent.env
 ExecStart=/usr/local/bin/topdata-agent serve
 Restart=on-failure
 RestartSec=5
+# Bound the agent's disk I/O so a full directory walk can never saturate the
+# host's storage (root-cause mitigation for the 2026-08-28 arm1 outage). The
+# agent only consumes disk bandwidth that no other process wants.
+IOSchedulingClass=idle
+IOWeight=10
 
 [Install]
 WantedBy=multi-user.target

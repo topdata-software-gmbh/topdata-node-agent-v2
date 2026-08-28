@@ -32,16 +32,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cobra-based CLI with a single `serve` command.
 ## [Unreleased]
 
-## [Unreleased]
-
-## [Unreleased]
-
-## [Unreleased]
-
 ### Changed
+- The disk scanner no longer triggers a full recursive walk of every shop at
+  process startup on restarts: when persisted scan state already exists for a
+  shop, its first scan after a restart is deferred to the shop's randomized phase.
+  This removes the restart→I/O-burst amplifier that contributed to the 2026-08-28
+  arm1 disk-I/O outage.
+- The disk-state file (`disk.state_file`) is now rewritten at most once per
+  `disk.state_save_interval` (default 30s) instead of on every per-shop scan,
+  reducing redundant full-file writes on slow storage.
+- The systemd unit now sets `IOSchedulingClass=idle` and `IOWeight=10` so the
+  agent's disk I/O can never starve the host (see deploy template).
 - `/disk-eaters` now reports each directory's `SIZE` and `GROWTH/h` as a **residual**: the value minus its single biggest direct child (by size). Ancestors no longer echo their big children — they show only the unexplained remainder, and read `0` growth when all their growth is attributable to a child entry. The ranking is also deterministically stable on ties (growth → size, size → growth).
 
 ### Added
+- Disk-scan I/O throttling knobs (env `TOPDATA_AGENT_DISK_*`): `scan_yield_every`
+  (directories between scheduler yields, default 0 = off), `scan_yield_sleep`
+  (sleep per yield, e.g. `1ms`, default 0), `state_save_interval` (default 30s),
+  and `scan_defer_on_state` (default true).
+- Self-observability metrics `topdata_agent_disk_scan_last_duration_seconds`
+  (gauge, label `shop`) and `topdata_agent_disk_scan_total` (counter, label
+  `shop`) for diagnosing scan cost from Prometheus.
+- The deployed `topdata-agent.env.j2` now ships safe disk-scan defaults fleet-wide
+  (`disk.scan_defer_on_state=true`, `disk.state_save_interval=30s`,
+  `disk.scan_yield_every=100`, `disk.scan_yield_sleep=2ms`) for the slow-storage
+  fleet, so the throttle applies to every host on the next deploy without a vault
+  edit.
+- On startup `serve` now prints the resolved configuration as a table (auth
+  password redacted) so operators can confirm the effective settings at a glance.
 - `/critical-errors` endpoint (Basic Auth, same middleware as `/metrics`): reports the most recent critical Shopware error lines per shop from an in-memory ring buffer (100 lines/shop, full untruncated messages). Supports `?shop=<name>`, `?limit=N` (default 20, capped at 100) and `?format=json|text|markdown` with the usual `Accept`-header fallback. Entries carry timestamps and survive midnight log rotation; history resets on agent restart (the payload includes `agent_started_at`). Removed shops are purged together with their Prometheus series.
 - First unit tests (`internal/monitor/error_buffer_test.go`) covering buffer eviction, snapshots and endpoint rendering.
 - `discovery.interval` (env `TOPDATA_AGENT_DISCOVERY_INTERVAL`, default `15m`): the agent now re-discovers shops periodically. Added shops are monitored automatically; removed shops are stopped and their Prometheus series removed — no service restart required. `/info`'s `shops_total` is now live.
